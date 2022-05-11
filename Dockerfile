@@ -14,7 +14,7 @@ FROM debian:latest AS ALLINONE
 RUN apt update
 RUN apt install -y ca-certificates && update-ca-certificates
 RUN apt install -y mariadb-server mariadb-client && mkdir -p web/build && chmod 777 /tmp
-LABEL MAINTAINER="https://casdoor.org/"
+LABEL MAINTAINER="https://github.com/99nil"
 COPY --from=BACK /go/src/casdoor/ ./
 COPY --from=BACK /usr/bin/wait-for-it ./
 COPY --from=FRONT /web/build /web/build
@@ -23,15 +23,22 @@ if [ "${MYSQL_ROOT_PASSWORD}" = "" ] ;then MYSQL_ROOT_PASSWORD=123456 ; fi&&\
 mysqladmin -u root password ${MYSQL_ROOT_PASSWORD} &&\
 ./wait-for-it localhost:3306 -- ./server --createDatabase=true
 
+FROM alpine:3.6 as alpine
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories && \
+    apk update && \
+    apk add -U --no-cache ca-certificates tzdata
 
-FROM alpine:latest
-RUN sed -i 's/https/http/' /etc/apk/repositories
-RUN apk add curl
-RUN apk add ca-certificates && update-ca-certificates
-LABEL MAINTAINER="https://casdoor.org/"
+FROM alpine:3.6
+LABEL MAINTAINER="https://github.com/99nil"
+ENV TZ="Asia/Shanghai"
 
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo $TZ > /etc/timezone
+
+COPY --from=alpine /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=BACK /go/src/casdoor/ ./
 COPY --from=BACK /usr/bin/wait-for-it ./
-RUN mkdir -p web/build && apk add --no-cache bash coreutils
 COPY --from=FRONT /web/build /web/build
-CMD  ./server
+
+CMD  ["./server"]

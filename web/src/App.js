@@ -633,7 +633,7 @@ class App extends Component {
           textAlign: 'center',
         }
       }>
-        Made with <span style={{color: 'rgb(255, 255, 255)'}}>❤️</span> by <a style={{fontWeight: "bold", color: "black"}} target="_blank" href="https://casdoor.org" rel="noreferrer">Casdoor</a>
+        {/*Made with <span style={{color: 'rgb(255, 255, 255)'}}>❤️</span> by <a style={{fontWeight: "bold", color: "black"}} target="_blank" href="https://github.com/99nil" rel="noreferrer">99nil</a>*/}
       </Footer>
     )
   }
@@ -692,7 +692,7 @@ class App extends Component {
       return (
         <React.Fragment>
           <Helmet>
-            <link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} />
+            {/*<link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} />*/}
           </Helmet>
           {
             this.renderPage()

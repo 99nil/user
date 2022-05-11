@@ -41,7 +41,7 @@ class PaymentListPage extends BaseListPage {
       currency: "USD",
       price: 300.00,
       payUrl: "https://pay.com/pay.php",
-      returnUrl: "https://door.casdoor.com/payments",
+      returnUrl: "http://localhost/payments",
       state: "Paid",
       message: "",
     }

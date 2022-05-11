@@ -178,8 +178,8 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField('type', 'GitHub');
               } else if (value === "Email") {
                 this.updateProviderField('type', 'Default');
-                this.updateProviderField('title', 'Casdoor Verification Code');
-                this.updateProviderField('content', 'You have requested a verification code at Casdoor. Here is your code: %s, please enter in 5 minutes.');
+                this.updateProviderField('title', '99nil Verification Code');
+                this.updateProviderField('content', 'You have requested a verification code at 99nil.\r\n Here is your code: %s, please enter in 5 minutes.');
               } else if (value === "SMS") {
                 this.updateProviderField('type', 'Aliyun SMS');
               } else if (value === "Storage") {
@@ -213,10 +213,10 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField('domain', Setting.getFullServerUrl());
               }
               if (value === "Custom") {
-                this.updateProviderField('customAuthUrl', 'https://door.casdoor.com/login/oauth/authorize');
+                this.updateProviderField('customAuthUrl', 'http://localhost/login/oauth/authorize');
                 this.updateProviderField('customScope', 'openid profile email');
-                this.updateProviderField('customTokenUrl', 'https://door.casdoor.com/api/login/oauth/access_token');
-                this.updateProviderField('customUserInfoUrl', 'https://door.casdoor.com/api/userinfo');
+                this.updateProviderField('customTokenUrl', 'http://localhost/api/login/oauth/access_token');
+                this.updateProviderField('customUserInfoUrl', 'http://localhost/api/userinfo');
               }
             })}>
               {

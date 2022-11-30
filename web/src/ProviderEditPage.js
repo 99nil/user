@@ -233,7 +233,7 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("port", 465);
                 this.updateProviderField("disableSsl", false);
                 this.updateProviderField("title", "99nil Verification Code");
-                this.updateProviderField('content', 'You have requested a verification code at 99nil.\r\n Here is your code: %s, please enter in 5 minutes.');
+                this.updateProviderField("content", "You have requested a verification code at 99nil.\r\n Here is your code: %s, please enter in 5 minutes.");
                 this.updateProviderField("receiver", this.props.account.email);
               } else if (value === "SMS") {
                 this.updateProviderField("type", "Aliyun SMS");
@@ -273,10 +273,10 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("domain", Setting.getFullServerUrl());
               }
               if (value === "Custom") {
-                this.updateProviderField('customAuthUrl', 'http://localhost/login/oauth/authorize');
-                this.updateProviderField('customScope', 'openid profile email');
-                this.updateProviderField('customTokenUrl', 'http://localhost/api/login/oauth/access_token');
-                this.updateProviderField('customUserInfoUrl', 'http://localhost/api/userinfo');
+                this.updateProviderField("customAuthUrl", "http://localhost/login/oauth/authorize");
+                this.updateProviderField("customScope", "openid profile email");
+                this.updateProviderField("customTokenUrl", "http://localhost/api/login/oauth/access_token");
+                this.updateProviderField("customUserInfoUrl", "http://localhost/api/userinfo");
               }
             })}>
               {

@@ -28,7 +28,6 @@ COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=BACK /work/server /usr/local/bin/server
 COPY --from=BACK /work/conf/app.conf ./conf/app.conf
 COPY --from=BACK /work/swagger ./swagger
-COPY --from=BACK /usr/bin/wait-for-it ./conf/app.conf
 COPY --from=FRONT /web/build ./web/build
 
 CMD  ["server"]

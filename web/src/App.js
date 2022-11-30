@@ -703,10 +703,10 @@ class App extends Component {
             textAlign: "center",
           }
         }>
-          {/*Powered by <a target="_blank" href="https://github.com/99nil" rel="noreferrer"><img style={{paddingBottom: "3px"}} height={"20px"} alt={"99nil"} src={`https://raw.githubusercontent.com/99nil/material/main/logo/logo2.png`} /></a>*/}
+          {/* Powered by <a target="_blank" href="https://github.com/99nil" rel="noreferrer"><img style={{paddingBottom: "3px"}} height={"20px"} alt={"99nil"} src={`https://raw.githubusercontent.com/99nil/material/main/logo/logo2.png`} /></a> */}
         </Footer>
       </>
-    )
+    );
   }
 
   isDoorPages() {
@@ -773,7 +773,7 @@ class App extends Component {
       return (
         <React.Fragment>
           <Helmet>
-            {/*<link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} />*/}
+            {/* <link rel="icon" href={"https://cdn.casdoor.com/static/favicon.png"} /> */}
           </Helmet>
           {
             this.renderPage()

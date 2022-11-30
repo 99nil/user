@@ -16,7 +16,8 @@ package controllers
 
 import (
 	"encoding/json"
-	"github.com/astaxie/beego/utils/pagination"
+
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -47,6 +48,7 @@ func (c *ApiController) GetSyncers() {
 	}
 }
 
+// GetSyncer
 // @Title GetSyncer
 // @Tag Syncer API
 // @Description get syncer
@@ -60,6 +62,7 @@ func (c *ApiController) GetSyncer() {
 	c.ServeJSON()
 }
 
+// UpdateSyncer
 // @Title UpdateSyncer
 // @Tag Syncer API
 // @Description update syncer
@@ -73,13 +76,15 @@ func (c *ApiController) UpdateSyncer() {
 	var syncer object.Syncer
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &syncer)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateSyncer(id, &syncer))
 	c.ServeJSON()
 }
 
+// AddSyncer
 // @Title AddSyncer
 // @Tag Syncer API
 // @Description add syncer
@@ -90,13 +95,15 @@ func (c *ApiController) AddSyncer() {
 	var syncer object.Syncer
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &syncer)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddSyncer(&syncer))
 	c.ServeJSON()
 }
 
+// DeleteSyncer
 // @Title DeleteSyncer
 // @Tag Syncer API
 // @Description delete syncer
@@ -107,13 +114,15 @@ func (c *ApiController) DeleteSyncer() {
 	var syncer object.Syncer
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &syncer)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteSyncer(&syncer))
 	c.ServeJSON()
 }
 
+// RunSyncer
 // @Title RunSyncer
 // @Tag Syncer API
 // @Description run syncer

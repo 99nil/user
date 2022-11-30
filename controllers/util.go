@@ -17,15 +17,16 @@ package controllers
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/casdoor/casdoor/conf"
+	"github.com/casdoor/casdoor/i18n"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
 
-// ResponseOk ...
-func (c *ApiController) ResponseOk(data ...interface{}) {
-	resp := Response{Status: "ok"}
+// ResponseJsonData ...
+func (c *ApiController) ResponseJsonData(resp *Response, data ...interface{}) {
 	switch len(data) {
 	case 2:
 		resp.Data2 = data[1]
@@ -37,45 +38,97 @@ func (c *ApiController) ResponseOk(data ...interface{}) {
 	c.ServeJSON()
 }
 
+// ResponseOk ...
+func (c *ApiController) ResponseOk(data ...interface{}) {
+	resp := &Response{Status: "ok"}
+	c.ResponseJsonData(resp, data...)
+}
+
 // ResponseError ...
 func (c *ApiController) ResponseError(error string, data ...interface{}) {
-	resp := Response{Status: "error", Msg: error}
-	switch len(data) {
-	case 2:
-		resp.Data2 = data[1]
-		fallthrough
-	case 1:
-		resp.Data = data[0]
+	resp := &Response{Status: "error", Msg: error}
+	c.ResponseJsonData(resp, data...)
+}
+
+func (c *ApiController) T(error string) string {
+	return i18n.Translate(c.GetAcceptLanguage(), error)
+}
+
+// GetAcceptLanguage ...
+func (c *ApiController) GetAcceptLanguage() string {
+	lang := c.Ctx.Request.Header.Get("Accept-Language")
+	if lang == "" || !strings.Contains(conf.GetConfigString("languages"), lang[0:2]) {
+		lang = "en"
 	}
-	c.Data["json"] = resp
-	c.ServeJSON()
+	return lang[0:2]
+}
+
+// SetTokenErrorHttpStatus ...
+func (c *ApiController) SetTokenErrorHttpStatus() {
+	_, ok := c.Data["json"].(*object.TokenError)
+	if ok {
+		if c.Data["json"].(*object.TokenError).Error == object.InvalidClient {
+			c.Ctx.Output.SetStatus(401)
+			c.Ctx.Output.Header("WWW-Authenticate", "Basic realm=\"OAuth2\"")
+		} else {
+			c.Ctx.Output.SetStatus(400)
+		}
+	}
+	_, ok = c.Data["json"].(*object.TokenWrapper)
+	if ok {
+		c.Ctx.Output.SetStatus(200)
+	}
 }
 
 // RequireSignedIn ...
 func (c *ApiController) RequireSignedIn() (string, bool) {
 	userId := c.GetSessionUsername()
 	if userId == "" {
-		c.ResponseError("Please sign in first")
+		c.ResponseError(c.T("LoginErr.LoginFirst"), "Please login first")
 		return "", false
 	}
 	return userId, true
 }
 
-func getInitScore() int {
-	score, err := strconv.Atoi(conf.GetConfigString("initScore"))
-	if err != nil {
-		panic(err)
+// RequireSignedInUser ...
+func (c *ApiController) RequireSignedInUser() (*object.User, bool) {
+	userId, ok := c.RequireSignedIn()
+	if !ok {
+		return nil, false
 	}
 
-	return score
+	user := object.GetUser(userId)
+	if user == nil {
+		c.ClearUserSession()
+		c.ResponseError(fmt.Sprintf(c.T("UserErr.DoNotExist"), userId))
+		return nil, false
+	}
+	return user, true
+}
+
+// RequireAdmin ...
+func (c *ApiController) RequireAdmin() (string, bool) {
+	user, ok := c.RequireSignedInUser()
+	if !ok {
+		return "", false
+	}
+
+	if user.Owner == "built-in" {
+		return "", true
+	}
+	return user.Owner, true
+}
+
+func getInitScore() (int, error) {
+	return strconv.Atoi(conf.GetConfigString("initScore"))
 }
 
 func (c *ApiController) GetProviderFromContext(category string) (*object.Provider, *object.User, bool) {
 	providerName := c.Input().Get("provider")
 	if providerName != "" {
-		provider := object.GetProvider(util.GetId(providerName))
+		provider := object.GetProvider(util.GetId("admin", providerName))
 		if provider == nil {
-			c.ResponseError(fmt.Sprintf("The provider: %s is not found", providerName))
+			c.ResponseError(c.T("ProviderErr.ProviderNotFound"), providerName)
 			return nil, nil, false
 		}
 		return provider, nil, true
@@ -88,15 +141,59 @@ func (c *ApiController) GetProviderFromContext(category string) (*object.Provide
 
 	application, user := object.GetApplicationByUserId(userId)
 	if application == nil {
-		c.ResponseError(fmt.Sprintf("No application is found for userId: \"%s\"", userId))
+		c.ResponseError(fmt.Sprintf(c.T("ApplicationErr.AppNotFoundForUserID"), userId))
 		return nil, nil, false
 	}
 
 	provider := application.GetProviderByCategory(category)
 	if provider == nil {
-		c.ResponseError(fmt.Sprintf("No provider for category: \"%s\" is found for application: %s", category, application.Name))
+		c.ResponseError(fmt.Sprintf(c.T("ProviderErr.ProviderNotFoundForCategory"), category, application.Name))
 		return nil, nil, false
 	}
 
 	return provider, user, true
+}
+
+func checkQuotaForApplication(count int) error {
+	quota := conf.GetConfigQuota().Application
+	if quota == -1 {
+		return nil
+	}
+	if count >= quota {
+		return fmt.Errorf("application quota is exceeded")
+	}
+	return nil
+}
+
+func checkQuotaForOrganization(count int) error {
+	quota := conf.GetConfigQuota().Organization
+	if quota == -1 {
+		return nil
+	}
+	if count >= quota {
+		return fmt.Errorf("organization quota is exceeded")
+	}
+	return nil
+}
+
+func checkQuotaForProvider(count int) error {
+	quota := conf.GetConfigQuota().Provider
+	if quota == -1 {
+		return nil
+	}
+	if count >= quota {
+		return fmt.Errorf("provider quota is exceeded")
+	}
+	return nil
+}
+
+func checkQuotaForUser(count int) error {
+	quota := conf.GetConfigQuota().User
+	if quota == -1 {
+		return nil
+	}
+	if count >= quota {
+		return fmt.Errorf("user quota is exceeded")
+	}
+	return nil
 }

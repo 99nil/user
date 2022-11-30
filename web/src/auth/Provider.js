@@ -34,7 +34,7 @@ const authInfo = {
     scope: "snsapi_login",
     endpoint: "https://open.weixin.qq.com/connect/qrconnect",
     mpScope: "snsapi_userinfo",
-    mpEndpoint: "https://open.weixin.qq.com/connect/oauth2/authorize"
+    mpEndpoint: "https://open.weixin.qq.com/connect/oauth2/authorize",
   },
   WeChatMiniProgram: {
     endpoint: "https://mp.weixin.qq.com/",
@@ -97,8 +97,8 @@ const authInfo = {
     endpoint: "https://appleid.apple.com/auth/authorize",
   },
   AzureAD: {
-    scope: "user_impersonation",
-    endpoint: "https://login.microsoftonline.com/common/oauth2/authorize",
+    scope: "user.read",
+    endpoint: "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
   },
   Slack: {
     scope: "users:read",
@@ -111,8 +111,15 @@ const authInfo = {
     scope: "openid%20profile%20email",
     endpoint: "http://example.com",
   },
+  Douyin: {
+    scope: "user_info",
+    endpoint: "https://open.douyin.com/platform/oauth/connect",
+  },
   Custom: {
     endpoint: "https://example.com/",
+  },
+  Bilibili: {
+    endpoint: "https://passport.bilibili.com/register/pc_oauth2.html",
   },
 };
 
@@ -130,7 +137,12 @@ export function getProviderUrl(provider) {
 
     return `${urlObj.protocol}//${host}`;
   } else {
-    return Setting.OtherProviderInfo[provider.category][provider.type].url;
+    const info = Setting.OtherProviderInfo[provider.category][provider.type];
+    // avoid crash when provider is not found
+    if (info) {
+      return info.url;
+    }
+    return "";
   }
 }
 
@@ -147,13 +159,13 @@ export function getProviderLogoWidget(provider) {
           <img width={36} height={36} src={Setting.getProviderLogoURL(provider)} alt={provider.displayName} />
         </a>
       </Tooltip>
-    )
+    );
   } else {
     return (
       <Tooltip title={provider.type}>
         <img width={36} height={36} src={Setting.getProviderLogoURL(provider)} alt={provider.displayName} />
       </Tooltip>
-    )
+    );
   }
 }
 
@@ -165,7 +177,9 @@ export function getAuthUrl(application, provider, method) {
   let endpoint = authInfo[provider.type].endpoint;
   const redirectUri = `${window.location.origin}/callback`;
   const scope = authInfo[provider.type].scope;
-  const state = Util.getQueryParamsToState(application.name, provider.name, method);
+
+  const isShortState = provider.type === "WeChat" && navigator.userAgent.includes("MicroMessenger");
+  const state = Util.getStateFromQueryParams(application.name, provider.name, method, isShortState);
 
   if (provider.type === "Google") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`;
@@ -224,19 +238,23 @@ export function getAuthUrl(application, provider, method) {
     return `${endpoint}?app_id=${provider.clientId}&scope=auth_user&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&display=popup`;
   } else if (provider.type === "Casdoor") {
     return `${provider.domain}/login/oauth/authorize?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
-  } else if (provider.type === "Infoflow"){
-    return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}?state=${state}`
+  } else if (provider.type === "Infoflow") {
+    return `${endpoint}?appid=${provider.clientId}&redirect_uri=${redirectUri}?state=${state}`;
   } else if (provider.type === "Apple") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&response_mode=form_post`;
   } else if (provider.type === "AzureAD") {
-    return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}&resource=https://graph.windows.net/`;
+    return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
   } else if (provider.type === "Slack") {
     return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
   } else if (provider.type === "Steam") {
     return `${endpoint}?openid.claimed_id=http://specs.openid.net/auth/2.0/identifier_select&openid.identity=http://specs.openid.net/auth/2.0/identifier_select&openid.mode=checkid_setup&openid.ns=http://specs.openid.net/auth/2.0&openid.realm=${window.location.origin}&openid.return_to=${redirectUri}?state=${state}`;
   } else if (provider.type === "Okta") {
     return `${provider.domain}/v1/authorize?client_id=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
+  } else if (provider.type === "Douyin") {
+    return `${endpoint}?client_key=${provider.clientId}&redirect_uri=${redirectUri}&state=${state}&response_type=code&scope=${scope}`;
   } else if (provider.type === "Custom") {
     return `${provider.customAuthUrl}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${provider.customScope}&response_type=code&state=${state}`;
-  } 
+  } else if (provider.type === "Bilibili") {
+    return `${endpoint}#/?client_id=${provider.clientId}&return_url=${redirectUri}&state=${state}&response_type=code`;
+  }
 }

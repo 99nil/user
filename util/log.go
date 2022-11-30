@@ -19,8 +19,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/astaxie/beego/context"
-	"github.com/astaxie/beego/logs"
+	"github.com/beego/beego/context"
+	"github.com/beego/beego/logs"
 )
 
 func GetIPInfo(clientIP string) string {
@@ -32,7 +32,7 @@ func GetIPInfo(clientIP string) string {
 	res := ""
 	for i := range ips {
 		ip := strings.TrimSpace(ips[i])
-		//desc := GetDescFromIP(ip)
+		// desc := GetDescFromIP(ip)
 		ipstr := fmt.Sprintf("%s: %s", ip, "")
 		if i != len(ips)-1 {
 			res += ipstr + " -> "

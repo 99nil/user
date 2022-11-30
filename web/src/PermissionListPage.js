@@ -14,7 +14,7 @@
 
 import React from "react";
 import {Link} from "react-router-dom";
-import {Button, Popconfirm, Switch, Table} from 'antd';
+import {Button, Popconfirm, Switch, Table} from "antd";
 import moment from "moment";
 import * as Setting from "./Setting";
 import * as PermissionBackend from "./backend/PermissionBackend";
@@ -25,27 +25,35 @@ class PermissionListPage extends BaseListPage {
   newPermission() {
     const randomName = Setting.getRandomName();
     return {
-      owner: "built-in",
+      owner: this.props.account.owner,
       name: `permission_${randomName}`,
       createdTime: moment().format(),
       displayName: `New Permission - ${randomName}`,
-      users: [],
+      users: [`${this.props.account.owner}/${this.props.account.name}`],
       roles: [],
+      domains: [],
       resourceType: "Application",
       resources: ["app-built-in"],
-      action: "Read",
+      actions: ["Read"],
       effect: "Allow",
       isEnabled: true,
-    }
+      submitter: this.props.account.name,
+      approver: "",
+      approveTime: "",
+      state: "Pending",
+    };
   }
 
   addPermission() {
     const newPermission = this.newPermission();
     PermissionBackend.addPermission(newPermission)
       .then((res) => {
+        if (res.status === "ok") {
           this.props.history.push({pathname: `/permissions/${newPermission.owner}/${newPermission.name}`, mode: "add"});
+        } else {
+          Setting.showMessage("error", `Permission failed to add: ${res.msg}`);
         }
-      )
+      })
       .catch(error => {
         Setting.showMessage("error", `Permission failed to add: ${error}`);
       });
@@ -54,12 +62,12 @@ class PermissionListPage extends BaseListPage {
   deletePermission(i) {
     PermissionBackend.deletePermission(this.state.data[i])
       .then((res) => {
-          Setting.showMessage("success", `Permission deleted successfully`);
-          this.setState({
-            data: Setting.deleteRow(this.state.data, i),
-            pagination: {total: this.state.pagination.total - 1},
-          });
-        }
+        Setting.showMessage("success", "Permission deleted successfully");
+        this.setState({
+          data: Setting.deleteRow(this.state.data, i),
+          pagination: {total: this.state.pagination.total - 1},
+        });
+      }
       )
       .catch(error => {
         Setting.showMessage("error", `Permission failed to delete: ${error}`);
@@ -68,153 +76,235 @@ class PermissionListPage extends BaseListPage {
 
   renderTable(permissions) {
     const columns = [
+      // https://github.com/ant-design/ant-design/issues/22184
+      {
+        title: i18next.t("general:Name"),
+        dataIndex: "name",
+        key: "name",
+        width: "150px",
+        fixed: "left",
+        sorter: true,
+        ...this.getColumnSearchProps("name"),
+        render: (text, record, index) => {
+          return (
+            <Link to={`/permissions/${record.owner}/${text}`}>
+              {text}
+            </Link>
+          );
+        },
+      },
       {
         title: i18next.t("general:Organization"),
-        dataIndex: 'owner',
-        key: 'owner',
-        width: '120px',
+        dataIndex: "owner",
+        key: "owner",
+        width: "120px",
         sorter: true,
-        ...this.getColumnSearchProps('owner'),
+        ...this.getColumnSearchProps("owner"),
         render: (text, record, index) => {
           return (
             <Link to={`/organizations/${text}`}>
               {text}
             </Link>
-          )
-        }
-      },
-      {
-        title: i18next.t("general:Name"),
-        dataIndex: 'name',
-        key: 'name',
-        width: '150px',
-        fixed: 'left',
-        sorter: true,
-        ...this.getColumnSearchProps('name'),
-        render: (text, record, index) => {
-          return (
-            <Link to={`/permissions/${text}`}>
-              {text}
-            </Link>
-          )
-        }
+          );
+        },
       },
       {
         title: i18next.t("general:Created time"),
-        dataIndex: 'createdTime',
-        key: 'createdTime',
-        width: '160px',
+        dataIndex: "createdTime",
+        key: "createdTime",
+        width: "160px",
         sorter: true,
         render: (text, record, index) => {
           return Setting.getFormattedDate(text);
-        }
+        },
       },
       {
         title: i18next.t("general:Display name"),
-        dataIndex: 'displayName',
-        key: 'displayName',
-        width: '160px',
+        dataIndex: "displayName",
+        key: "displayName",
+        width: "160px",
         sorter: true,
-        ...this.getColumnSearchProps('displayName'),
+        ...this.getColumnSearchProps("displayName"),
       },
       {
         title: i18next.t("role:Sub users"),
-        dataIndex: 'users',
-        key: 'users',
+        dataIndex: "users",
+        key: "users",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps('users'),
+        ...this.getColumnSearchProps("users"),
         render: (text, record, index) => {
           return Setting.getTags(text);
-        }
+        },
       },
       {
         title: i18next.t("role:Sub roles"),
-        dataIndex: 'roles',
-        key: 'roles',
+        dataIndex: "roles",
+        key: "roles",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps('roles'),
+        ...this.getColumnSearchProps("roles"),
         render: (text, record, index) => {
           return Setting.getTags(text);
-        }
+        },
+      },
+      {
+        title: i18next.t("role:Sub domains"),
+        dataIndex: "domains",
+        key: "domains",
+        sorter: true,
+        ...this.getColumnSearchProps("domains"),
+        render: (text, record, index) => {
+          return Setting.getTags(text);
+        },
       },
       {
         title: i18next.t("permission:Resource type"),
-        dataIndex: 'resourceType',
-        key: 'resourceType',
+        dataIndex: "resourceType",
+        key: "resourceType",
         filterMultiple: false,
         filters: [
-          {text: 'Application', value: 'Application'},
+          {text: "Application", value: "Application"},
         ],
-        width: '170px',
+        width: "170px",
         sorter: true,
       },
       {
         title: i18next.t("permission:Resources"),
-        dataIndex: 'resources',
-        key: 'resources',
+        dataIndex: "resources",
+        key: "resources",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps('resources'),
+        ...this.getColumnSearchProps("resources"),
         render: (text, record, index) => {
           return Setting.getTags(text);
-        }
+        },
       },
       {
         title: i18next.t("permission:Actions"),
-        dataIndex: 'actions',
-        key: 'actions',
+        dataIndex: "actions",
+        key: "actions",
         // width: '100px',
         sorter: true,
-        ...this.getColumnSearchProps('actions'),
+        ...this.getColumnSearchProps("actions"),
         render: (text, record, index) => {
-          return Setting.getTags(text);
-        }
+          const tags = text.map((tag, i) => {
+            switch (tag) {
+            case "Read":
+              return i18next.t("permission:Read");
+            case "Write":
+              return i18next.t("permission:Write");
+            case "Admin":
+              return i18next.t("permission:Admin");
+            default:
+              return null;
+            }
+          });
+          return Setting.getTags(tags);
+        },
       },
       {
         title: i18next.t("permission:Effect"),
-        dataIndex: 'effect',
-        key: 'effect',
+        dataIndex: "effect",
+        key: "effect",
         filterMultiple: false,
         filters: [
-          {text: 'Allow', value: 'Allow'},
-          {text: 'Deny', value: 'Deny'},
+          {text: i18next.t("permission:Allow"), value: "Allow"},
+          {text: i18next.t("permission:Deny"), value: "Deny"},
         ],
-        width: '120px',
+        width: "120px",
         sorter: true,
+        render: (text, record, index) => {
+          switch (text) {
+          case "Allow":
+            return Setting.getTag("success", i18next.t("permission:Allow"));
+          case "Deny":
+            return Setting.getTag("error", i18next.t("permission:Deny"));
+          default:
+            return null;
+          }
+        },
       },
       {
         title: i18next.t("general:Is enabled"),
-        dataIndex: 'isEnabled',
-        key: 'isEnabled',
-        width: '120px',
+        dataIndex: "isEnabled",
+        key: "isEnabled",
+        width: "120px",
         sorter: true,
         render: (text, record, index) => {
           return (
             <Switch disabled checkedChildren="ON" unCheckedChildren="OFF" checked={text} />
-          )
-        }
+          );
+        },
+      },
+      {
+        title: i18next.t("permission:Submitter"),
+        dataIndex: "submitter",
+        key: "submitter",
+        filterMultiple: false,
+        width: "120px",
+        sorter: true,
+      },
+      {
+        title: i18next.t("permission:Approver"),
+        dataIndex: "approver",
+        key: "approver",
+        filterMultiple: false,
+        width: "120px",
+        sorter: true,
+      },
+      {
+        title: i18next.t("permission:Approve time"),
+        dataIndex: "approveTime",
+        key: "approveTime",
+        filterMultiple: false,
+        width: "120px",
+        sorter: true,
+        render: (text, record, index) => {
+          return Setting.getFormattedDate(text);
+        },
+      },
+      {
+        title: i18next.t("permission:State"),
+        dataIndex: "state",
+        key: "state",
+        filterMultiple: false,
+        filters: [
+          {text: i18next.t("permission:Approved"), value: "Approved"},
+          {text: i18next.t("permission:Pending"), value: "Pending"},
+        ],
+        width: "120px",
+        sorter: true,
+        render: (text, record, index) => {
+          switch (text) {
+          case "Approved":
+            return Setting.getTag("success", i18next.t("permission:Approved"));
+          case "Pending":
+            return Setting.getTag("error", i18next.t("permission:Pending"));
+          default:
+            return null;
+          }
+        },
       },
       {
         title: i18next.t("general:Action"),
-        dataIndex: '',
-        key: 'op',
-        width: '170px',
+        dataIndex: "",
+        key: "op",
+        width: "170px",
         fixed: (Setting.isMobile()) ? "false" : "right",
         render: (text, record, index) => {
           return (
             <div>
-              <Button style={{marginTop: '10px', marginBottom: '10px', marginRight: '10px'}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
+              <Button style={{marginTop: "10px", marginBottom: "10px", marginRight: "10px"}} type="primary" onClick={() => this.props.history.push(`/permissions/${record.owner}/${record.name}`)}>{i18next.t("general:Edit")}</Button>
               <Popconfirm
                 title={`Sure to delete permission: ${record.name} ?`}
                 onConfirm={() => this.deletePermission(index)}
               >
-                <Button style={{marginBottom: '10px'}} type="danger">{i18next.t("general:Delete")}</Button>
+                <Button style={{marginBottom: "10px"}} type="danger">{i18next.t("general:Delete")}</Button>
               </Popconfirm>
             </div>
-          )
-        }
+          );
+        },
       },
     ];
 
@@ -227,15 +317,15 @@ class PermissionListPage extends BaseListPage {
 
     return (
       <div>
-        <Table scroll={{x: 'max-content'}} columns={columns} dataSource={permissions} rowKey="name" size="middle" bordered pagination={paginationProps}
-               title={() => (
-                 <div>
-                   {i18next.t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
-                   <Button type="primary" size="small" onClick={this.addPermission.bind(this)}>{i18next.t("general:Add")}</Button>
-                 </div>
-               )}
-               loading={this.state.loading}
-               onChange={this.handleTableChange}
+        <Table scroll={{x: "max-content"}} columns={columns} dataSource={permissions} rowKey="name" size="middle" bordered pagination={paginationProps}
+          title={() => (
+            <div>
+              {i18next.t("general:Permissions")}&nbsp;&nbsp;&nbsp;&nbsp;
+              <Button type="primary" size="small" onClick={this.addPermission.bind(this)}>{i18next.t("general:Add")}</Button>
+            </div>
+          )}
+          loading={this.state.loading}
+          onChange={this.handleTableChange}
         />
       </div>
     );
@@ -243,13 +333,15 @@ class PermissionListPage extends BaseListPage {
 
   fetch = (params = {}) => {
     let field = params.searchedColumn, value = params.searchText;
-    let sortField = params.sortField, sortOrder = params.sortOrder;
+    const sortField = params.sortField, sortOrder = params.sortOrder;
     if (params.type !== undefined && params.type !== null) {
       field = "type";
       value = params.type;
     }
-    this.setState({ loading: true });
-    PermissionBackend.getPermissions("", params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
+    this.setState({loading: true});
+
+    const getPermissions = Setting.isLocalAdminUser(this.props.account) ? PermissionBackend.getPermissions : PermissionBackend.getPermissionsBySubmitter;
+    getPermissions(Setting.isAdminUser(this.props.account) ? "" : this.props.account.owner, params.pagination.current, params.pagination.pageSize, field, value, sortField, sortOrder)
       .then((res) => {
         if (res.status === "ok") {
           this.setState({

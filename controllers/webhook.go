@@ -17,7 +17,7 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -48,6 +48,7 @@ func (c *ApiController) GetWebhooks() {
 	}
 }
 
+// GetWebhook
 // @Title GetWebhook
 // @Tag Webhook API
 // @Description get webhook
@@ -61,6 +62,7 @@ func (c *ApiController) GetWebhook() {
 	c.ServeJSON()
 }
 
+// UpdateWebhook
 // @Title UpdateWebhook
 // @Tag Webhook API
 // @Description update webhook
@@ -74,13 +76,15 @@ func (c *ApiController) UpdateWebhook() {
 	var webhook object.Webhook
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &webhook)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateWebhook(id, &webhook))
 	c.ServeJSON()
 }
 
+// AddWebhook
 // @Title AddWebhook
 // @Tag Webhook API
 // @Description add webhook
@@ -91,13 +95,15 @@ func (c *ApiController) AddWebhook() {
 	var webhook object.Webhook
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &webhook)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddWebhook(&webhook))
 	c.ServeJSON()
 }
 
+// DeleteWebhook
 // @Title DeleteWebhook
 // @Tag Webhook API
 // @Description delete webhook
@@ -108,7 +114,8 @@ func (c *ApiController) DeleteWebhook() {
 	var webhook object.Webhook
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &webhook)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteWebhook(&webhook))

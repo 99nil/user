@@ -18,8 +18,11 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/casdoor/casdoor/cred"
+	"github.com/casdoor/casdoor/i18n"
 	"github.com/casdoor/casdoor/util"
 	goldap "github.com/go-ldap/ldap/v3"
 )
@@ -29,75 +32,99 @@ var (
 	reFieldWhiteList *regexp.Regexp
 )
 
+const (
+	SigninWrongTimesLimit     = 5
+	LastSignWrongTimeDuration = time.Minute * 15
+)
+
 func init() {
 	reWhiteSpace, _ = regexp.Compile(`\s`)
 	reFieldWhiteList, _ = regexp.Compile(`^[A-Za-z0-9]+$`)
 }
 
-func CheckUserSignup(application *Application, organization *Organization, username string, password string, displayName string, firstName string, lastName string, email string, phone string, affiliation string) string {
+func CheckUserSignup(application *Application, organization *Organization, username string, password string, displayName string, firstName string, lastName string, email string, phone string, affiliation string, lang string) string {
 	if organization == nil {
-		return "organization does not exist"
+		return i18n.Translate(lang, "OrgErr.DoNotExist")
 	}
 
 	if application.IsSignupItemVisible("Username") {
 		if len(username) <= 1 {
-			return "username must have at least 2 characters"
-		} else if reWhiteSpace.MatchString(username) {
-			return "username cannot contain white spaces"
-		} else if HasUserByField(organization.Name, "name", username) {
-			return "username already exists"
+			return i18n.Translate(lang, "UserErr.NameLessThanTwoCharacters")
+		}
+		if unicode.IsDigit(rune(username[0])) {
+			return i18n.Translate(lang, "UserErr.NameStartWithADigitErr")
+		}
+		if util.IsEmailValid(username) {
+			return i18n.Translate(lang, "UserErr.NameIsEmailErr")
+		}
+		if reWhiteSpace.MatchString(username) {
+			return i18n.Translate(lang, "UserErr.NameCantainWhitSpaceErr")
+		}
+		msg := CheckUsername(username, lang)
+		if msg != "" {
+			return msg
+		}
+
+		if HasUserByField(organization.Name, "name", username) {
+			return i18n.Translate(lang, "UserErr.NameExistedErr")
+		}
+		if HasUserByField(organization.Name, "email", email) {
+			return i18n.Translate(lang, "EmailErr.ExistedErr")
+		}
+		if HasUserByField(organization.Name, "phone", phone) {
+			return i18n.Translate(lang, "PhoneErr.ExistedErr")
 		}
 	}
 
 	if len(password) <= 5 {
-		return "password must have at least 6 characters"
+		return i18n.Translate(lang, "UserErr.PasswordLessThanSixCharacters")
 	}
 
 	if application.IsSignupItemVisible("Email") {
 		if email == "" {
 			if application.IsSignupItemRequired("Email") {
-				return "email cannot be empty"
+				return i18n.Translate(lang, "EmailErr.EmptyErr")
 			} else {
 				return ""
 			}
 		}
 
 		if HasUserByField(organization.Name, "email", email) {
-			return "email already exists"
+			return i18n.Translate(lang, "EmailErr.ExistedErr")
 		} else if !util.IsEmailValid(email) {
-			return "email is invalid"
+			return i18n.Translate(lang, "EmailErr.EmailInvalid")
 		}
 	}
 
 	if application.IsSignupItemVisible("Phone") {
 		if phone == "" {
 			if application.IsSignupItemRequired("Phone") {
-				return "phone cannot be empty"
+				return i18n.Translate(lang, "PhoneErr.EmptyErr")
 			} else {
 				return ""
 			}
 		}
 
 		if HasUserByField(organization.Name, "phone", phone) {
-			return "phone already exists"
+			return i18n.Translate(lang, "PhoneErr.ExistedErr")
 		} else if organization.PhonePrefix == "86" && !util.IsPhoneCnValid(phone) {
-			return "phone number is invalid"
+			return i18n.Translate(lang, "PhoneErr.NumberInvalid")
 		}
 	}
 
 	if application.IsSignupItemVisible("Display name") {
 		if application.GetSignupItemRule("Display name") == "First, last" && (firstName != "" || lastName != "") {
 			if firstName == "" {
-				return "firstName cannot be blank"
+				return i18n.Translate(lang, "UserErr.FirstNameBlankErr")
 			} else if lastName == "" {
-				return "lastName cannot be blank"
+				return i18n.Translate(lang, "UserErr.LastNameBlankErr")
 			}
 		} else {
 			if displayName == "" {
-				return "displayName cannot be blank"
+				return i18n.Translate(lang, "UserErr.DisplayNameBlankErr")
 			} else if application.GetSignupItemRule("Display name") == "Real name" {
 				if !isValidRealName(displayName) {
-					return "displayName is not valid real name"
+					return i18n.Translate(lang, "UserErr.DisplayNameInvalid")
 				}
 			}
 		}
@@ -105,37 +132,65 @@ func CheckUserSignup(application *Application, organization *Organization, usern
 
 	if application.IsSignupItemVisible("Affiliation") {
 		if affiliation == "" {
-			return "affiliation cannot be blank"
+			return i18n.Translate(lang, "UserErr.AffiliationBlankErr")
 		}
 	}
 
 	return ""
 }
 
-func CheckPassword(user *User, password string) string {
+func checkSigninErrorTimes(user *User, lang string) string {
+	if user.SigninWrongTimes >= SigninWrongTimesLimit {
+		lastSignWrongTime, _ := time.Parse(time.RFC3339, user.LastSigninWrongTime)
+		passedTime := time.Now().UTC().Sub(lastSignWrongTime)
+		seconds := int(LastSignWrongTimeDuration.Seconds() - passedTime.Seconds())
+
+		// deny the login if the error times is greater than the limit and the last login time is less than the duration
+		if seconds > 0 {
+			return fmt.Sprintf(i18n.Translate(lang, "AuthErr.WrongPasswordManyTimes"), seconds/60, seconds%60)
+		}
+
+		// reset the error times
+		user.SigninWrongTimes = 0
+
+		UpdateUser(user.GetId(), user, []string{"signin_wrong_times"}, user.IsGlobalAdmin)
+	}
+
+	return ""
+}
+
+func CheckPassword(user *User, password string, lang string) string {
+	// check the login error times
+	if msg := checkSigninErrorTimes(user, lang); msg != "" {
+		return msg
+	}
+
 	organization := GetOrganizationByUser(user)
 	if organization == nil {
-		return "organization does not exist"
+		return i18n.Translate(lang, "OrgErr.DoNotExist")
 	}
 
 	credManager := cred.GetCredManager(organization.PasswordType)
 	if credManager != nil {
 		if organization.MasterPassword != "" {
 			if credManager.IsPasswordCorrect(password, organization.MasterPassword, "", organization.PasswordSalt) {
+				resetUserSigninErrorTimes(user)
 				return ""
 			}
 		}
 
 		if credManager.IsPasswordCorrect(password, user.Password, user.PasswordSalt, organization.PasswordSalt) {
+			resetUserSigninErrorTimes(user)
 			return ""
 		}
-		return "password incorrect"
+
+		return recordSigninErrorInfo(user)
 	} else {
-		return fmt.Sprintf("unsupported password type: %s", organization.PasswordType)
+		return fmt.Sprintf(i18n.Translate(lang, "LoginErr.UnsupportedPasswordType"), organization.PasswordType)
 	}
 }
 
-func checkLdapUserPassword(user *User, password string) (*User, string) {
+func checkLdapUserPassword(user *User, password string, lang string) (*User, string) {
 	ldaps := GetLdaps(user.Owner)
 	ldapLoginSuccess := false
 	for _, ldapServer := range ldaps {
@@ -155,7 +210,7 @@ func checkLdapUserPassword(user *User, password string) (*User, string) {
 		if len(searchResult.Entries) == 0 {
 			continue
 		} else if len(searchResult.Entries) > 1 {
-			return nil, "Error: multiple accounts with same uid, please check your ldap server"
+			return nil, i18n.Translate(lang, "LdapErr.MultipleAccounts")
 		}
 
 		dn := searchResult.Entries[0].DN
@@ -166,26 +221,26 @@ func checkLdapUserPassword(user *User, password string) (*User, string) {
 	}
 
 	if !ldapLoginSuccess {
-		return nil, "ldap user name or password incorrect"
+		return nil, i18n.Translate(lang, "LdapErr.PasswordWrong")
 	}
 	return user, ""
 }
 
-func CheckUserPassword(organization string, username string, password string) (*User, string) {
+func CheckUserPassword(organization string, username string, password string, lang string) (*User, string) {
 	user := GetUserByFields(organization, username)
 	if user == nil || user.IsDeleted == true {
-		return nil, "the user does not exist, please sign up first"
+		return nil, i18n.Translate(lang, "UserErr.DoNotExistSignUp")
 	}
 
 	if user.IsForbidden {
-		return nil, "the user is forbidden to sign in, please contact the administrator"
+		return nil, i18n.Translate(lang, "LoginErr.UserIsForbidden")
 	}
 
 	if user.Ldap != "" {
-		//ONLY for ldap users
-		return checkLdapUserPassword(user, password)
+		// ONLY for ldap users
+		return checkLdapUserPassword(user, password, lang)
 	} else {
-		msg := CheckPassword(user, password)
+		msg := CheckPassword(user, password, lang)
 		if msg != "" {
 			return nil, msg
 		}
@@ -197,14 +252,18 @@ func filterField(field string) bool {
 	return reFieldWhiteList.MatchString(field)
 }
 
-func CheckUserPermission(requestUserId, userId string, strict bool) (bool, error) {
+func CheckUserPermission(requestUserId, userId, userOwner string, strict bool, lang string) (bool, error) {
 	if requestUserId == "" {
-		return false, fmt.Errorf("please login first")
+		return false, fmt.Errorf(i18n.Translate(lang, "LoginErr.LoginFirst"))
 	}
 
-	targetUser := GetUser(userId)
-	if targetUser == nil {
-		return false, fmt.Errorf("the user: %s doesn't exist", userId)
+	if userId != "" {
+		targetUser := GetUser(userId)
+		if targetUser == nil {
+			return false, fmt.Errorf(i18n.Translate(lang, "UserErr.DoNotExist"), userId)
+		}
+
+		userOwner = targetUser.Owner
 	}
 
 	hasPermission := false
@@ -213,13 +272,13 @@ func CheckUserPermission(requestUserId, userId string, strict bool) (bool, error
 	} else {
 		requestUser := GetUser(requestUserId)
 		if requestUser == nil {
-			return false, fmt.Errorf("session outdated, please login again")
+			return false, fmt.Errorf(i18n.Translate(lang, "LoginErr.SessionOutdated"))
 		}
 		if requestUser.IsGlobalAdmin {
 			hasPermission = true
 		} else if requestUserId == userId {
 			hasPermission = true
-		} else if targetUser.Owner == requestUser.Owner {
+		} else if userOwner == requestUser.Owner {
 			if strict {
 				hasPermission = requestUser.IsAdmin
 			} else {
@@ -228,5 +287,73 @@ func CheckUserPermission(requestUserId, userId string, strict bool) (bool, error
 		}
 	}
 
-	return hasPermission, fmt.Errorf("you don't have the permission to do this")
+	return hasPermission, fmt.Errorf(i18n.Translate(lang, "LoginErr.NoPermission"))
+}
+
+func CheckAccessPermission(userId string, application *Application) (bool, error) {
+	permissions := GetPermissions(application.Organization)
+	allowed := true
+	var err error
+	for _, permission := range permissions {
+		if !permission.IsEnabled || len(permission.Users) == 0 {
+			continue
+		}
+
+		isHit := false
+		for _, resource := range permission.Resources {
+			if application.Name == resource {
+				isHit = true
+				break
+			}
+		}
+
+		if isHit {
+			containsAsterisk := ContainsAsterisk(userId, permission.Users)
+			if containsAsterisk {
+				return true, err
+			}
+			enforcer := getEnforcer(permission)
+			allowed, err = enforcer.Enforce(userId, application.Name, "read")
+			break
+		}
+	}
+	return allowed, err
+}
+
+func CheckUsername(username string, lang string) string {
+	if username == "" {
+		return i18n.Translate(lang, "UserErr.NameEmptyErr")
+	} else if len(username) > 39 {
+		return i18n.Translate(lang, "UserErr.NameTooLang")
+	}
+
+	exclude, _ := regexp.Compile("^[\u0021-\u007E]+$")
+	if !exclude.MatchString(username) {
+		return ""
+	}
+
+	// https://stackoverflow.com/questions/58726546/github-username-convention-using-regex
+	re, _ := regexp.Compile("^[a-zA-Z0-9]+((?:-[a-zA-Z0-9]+)|(?:_[a-zA-Z0-9]+))*$")
+	if !re.MatchString(username) {
+		return i18n.Translate(lang, "UserErr.NameFormatErr")
+	}
+
+	return ""
+}
+
+func CheckToEnableCaptcha(application *Application) bool {
+	if len(application.Providers) == 0 {
+		return false
+	}
+
+	for _, providerItem := range application.Providers {
+		if providerItem.Provider == nil {
+			continue
+		}
+		if providerItem.Provider.Category == "Captcha" && providerItem.Provider.Type == "Default" {
+			return providerItem.Rule == "Always"
+		}
+	}
+
+	return false
 }

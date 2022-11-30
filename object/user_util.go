@@ -80,7 +80,7 @@ func SetUserField(user *User, field string, value string) bool {
 		value = user.Password
 	}
 
-	affected, err := adapter.Engine.Table(user).ID(core.PK{user.Owner, user.Name}).Update(map[string]interface{}{field: value})
+	affected, err := adapter.Engine.Table(user).ID(core.PK{user.Owner, user.Name}).Update(map[string]interface{}{strings.ToLower(field): value})
 	if err != nil {
 		panic(err)
 	}
@@ -106,6 +106,10 @@ func setUserProperty(user *User, field string, value string) {
 	if value == "" {
 		delete(user.Properties, field)
 	} else {
+		if user.Properties == nil {
+			user.Properties = make(map[string]string)
+		}
+
 		user.Properties[field] = value
 	}
 }
@@ -133,6 +137,12 @@ func SetUserOAuthProperties(organization *Organization, user *User, providerType
 			user.Email = userInfo.Email
 		}
 	}
+
+	if userInfo.UnionId != "" {
+		propertyName := fmt.Sprintf("oauth_%s_unionId", providerType)
+		setUserProperty(user, propertyName, userInfo.UnionId)
+	}
+
 	if userInfo.AvatarUrl != "" {
 		propertyName := fmt.Sprintf("oauth_%s_avatarUrl", providerType)
 		setUserProperty(user, propertyName, userInfo.AvatarUrl)

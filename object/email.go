@@ -16,10 +16,28 @@
 
 package object
 
-import "github.com/go-gomail/gomail"
+import (
+	"crypto/tls"
+
+	"github.com/go-gomail/gomail"
+)
+
+func getDialer(provider *Provider) *gomail.Dialer {
+	dialer := &gomail.Dialer{}
+	if provider.Type == "SUBMAIL" {
+		dialer = gomail.NewDialer(provider.Host, provider.Port, provider.AppId, provider.ClientSecret)
+		dialer.TLSConfig = &tls.Config{InsecureSkipVerify: true}
+	} else {
+		dialer = gomail.NewDialer(provider.Host, provider.Port, provider.ClientId, provider.ClientSecret)
+	}
+
+	dialer.SSL = !provider.DisableSsl
+
+	return dialer
+}
 
 func SendEmail(provider *Provider, title string, content string, dest string, sender string) error {
-	dialer := gomail.NewDialer(provider.Host, provider.Port, provider.ClientId, provider.ClientSecret)
+	dialer := getDialer(provider)
 
 	message := gomail.NewMessage()
 	message.SetAddressHeader("From", provider.ClientId, sender)
@@ -28,4 +46,17 @@ func SendEmail(provider *Provider, title string, content string, dest string, se
 	message.SetBody("text/html", content)
 
 	return dialer.DialAndSend(message)
+}
+
+// DailSmtpServer Dail Smtp server
+func DailSmtpServer(provider *Provider) error {
+	dialer := getDialer(provider)
+
+	sender, err := dialer.Dial()
+	if err != nil {
+		return err
+	}
+	defer sender.Close()
+
+	return nil
 }

@@ -17,7 +17,7 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -48,6 +48,7 @@ func (c *ApiController) GetCerts() {
 	}
 }
 
+// GetCert
 // @Title GetCert
 // @Tag Cert API
 // @Description get cert
@@ -61,6 +62,7 @@ func (c *ApiController) GetCert() {
 	c.ServeJSON()
 }
 
+// UpdateCert
 // @Title UpdateCert
 // @Tag Cert API
 // @Description update cert
@@ -74,13 +76,15 @@ func (c *ApiController) UpdateCert() {
 	var cert object.Cert
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cert)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateCert(id, &cert))
 	c.ServeJSON()
 }
 
+// AddCert
 // @Title AddCert
 // @Tag Cert API
 // @Description add cert
@@ -91,13 +95,15 @@ func (c *ApiController) AddCert() {
 	var cert object.Cert
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cert)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddCert(&cert))
 	c.ServeJSON()
 }
 
+// DeleteCert
 // @Title DeleteCert
 // @Tag Cert API
 // @Description delete cert
@@ -108,7 +114,8 @@ func (c *ApiController) DeleteCert() {
 	var cert object.Cert
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &cert)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteCert(&cert))

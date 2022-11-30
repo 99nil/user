@@ -15,11 +15,18 @@
 package i18n
 
 import (
+	"embed"
 	"fmt"
 	"strings"
 
 	"github.com/casdoor/casdoor/util"
+	"gopkg.in/ini.v1"
 )
+
+//go:embed languages/*.ini
+var f embed.FS
+
+var langMapConfig = make(map[string]*ini.File)
 
 func getI18nFilePath(language string) string {
 	return fmt.Sprintf("../web/src/locales/%s/data.json", language)
@@ -39,6 +46,7 @@ func readI18nFile(language string) *I18nData {
 func writeI18nFile(language string, data *I18nData) {
 	s := util.StructToJsonFormatted(data)
 	s = strings.ReplaceAll(s, "\\u0026", "&")
+	s += "\n"
 	println(s)
 
 	util.WriteStringToPath(s, getI18nFilePath(language))
@@ -59,5 +67,20 @@ func applyData(data1 *I18nData, data2 *I18nData) {
 
 			pairs1[key] = value
 		}
+	}
+}
+
+func Translate(lang string, error string) string {
+	parts := strings.Split(error, ".")
+	if !strings.Contains(error, ".") || len(parts) != 2 {
+		return "Translate Error: " + error
+	}
+
+	if langMapConfig[lang] != nil {
+		return langMapConfig[lang].Section(parts[0]).Key(parts[1]).String()
+	} else {
+		file, _ := f.ReadFile("languages/locale_" + lang + ".ini")
+		langMapConfig[lang], _ = ini.Load(file)
+		return langMapConfig[lang].Section(parts[0]).Key(parts[1]).String()
 	}
 }

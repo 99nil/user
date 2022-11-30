@@ -88,7 +88,7 @@ type CasAnyAttribute struct {
 
 type CasAuthenticationSuccessWrapper struct {
 	AuthenticationSuccess *CasAuthenticationSuccess // the token we issued
-	Service               string                    //to which service this token is issued
+	Service               string                    // to which service this token is issued
 	UserId                string
 }
 
@@ -116,10 +116,10 @@ type Saml11AssertionArtifact struct {
 	InnerXML string   `xml:",innerxml"`
 }
 
-//st is short for service ticket
+// st is short for service ticket
 var stToServiceResponse sync.Map
 
-//pgt is short for proxy granting ticket
+// pgt is short for proxy granting ticket
 var pgtToServiceResponse sync.Map
 
 func StoreCasTokenForPgt(token *CasAuthenticationSuccess, service, userId string) string {
@@ -136,6 +136,7 @@ func GenerateId() {
 	panic("unimplemented")
 }
 
+// GetCasTokenByPgt
 /**
 @ret1: whether a token is found
 @ret2: token, nil if not found
@@ -150,6 +151,7 @@ func GetCasTokenByPgt(pgt string) (bool, *CasAuthenticationSuccess, string, stri
 	return false, nil, "", ""
 }
 
+// GetCasTokenByTicket
 /**
 @ret1: whether a token is found
 @ret2: token, nil if not found
@@ -207,6 +209,7 @@ func GenerateCasToken(userId string, service string) (string, error) {
 	}
 }
 
+// GetValidationBySaml
 /**
 @ret1: saml response
 @ret2: the service URL who requested to issue this token
@@ -241,11 +244,11 @@ func GetValidationBySaml(samlRequest string, host string) (string, string, error
 	samlResponse := NewSamlResponse11(user, request.RequestID, host)
 
 	cert := getCertByApplication(application)
-	block, _ := pem.Decode([]byte(cert.PublicKey))
-	publicKey := base64.StdEncoding.EncodeToString(block.Bytes)
+	block, _ := pem.Decode([]byte(cert.Certificate))
+	certificate := base64.StdEncoding.EncodeToString(block.Bytes)
 	randomKeyStore := &X509Key{
 		PrivateKey:      cert.PrivateKey,
-		X509Certificate: publicKey,
+		X509Certificate: certificate,
 	}
 
 	ctx := dsig.NewDefaultSigningContext(randomKeyStore)
@@ -262,12 +265,11 @@ func GetValidationBySaml(samlRequest string, host string) (string, string, error
 		return "", "", fmt.Errorf("err: %s", err.Error())
 	}
 	return xmlStr, service, nil
-
 }
 
 func (c *CasAuthenticationSuccess) DeepCopy() CasAuthenticationSuccess {
 	res := *c
-	//copy proxy
+	// copy proxy
 	if c.Proxies != nil {
 		tmp := c.Proxies.DeepCopy()
 		res.Proxies = &tmp
@@ -307,7 +309,6 @@ func (c *CasAttributes) DeepCopy() CasAttributes {
 		res.ExtraAttributes[i] = &tmp
 	}
 	return res
-
 }
 
 func (c *CasUserAttributes) DeepCopy() CasUserAttributes {
@@ -316,11 +317,11 @@ func (c *CasUserAttributes) DeepCopy() CasUserAttributes {
 		Attributes:    make([]*CasNamedAttribute, len(c.Attributes)),
 	}
 	for i, a := range c.AnyAttributes {
-		var tmp = *a
+		tmp := *a
 		res.AnyAttributes[i] = &tmp
 	}
 	for i, a := range c.Attributes {
-		var tmp = *a
+		tmp := *a
 		res.Attributes[i] = &tmp
 	}
 	return res

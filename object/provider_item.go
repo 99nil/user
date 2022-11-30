@@ -15,12 +15,15 @@
 package object
 
 type ProviderItem struct {
-	Name      string    `json:"name"`
+	Owner string `json:"owner"`
+	Name  string `json:"name"`
+
 	CanSignUp bool      `json:"canSignUp"`
 	CanSignIn bool      `json:"canSignIn"`
 	CanUnlink bool      `json:"canUnlink"`
 	Prompted  bool      `json:"prompted"`
 	AlertType string    `json:"alertType"`
+	Rule      string    `json:"rule"`
 	Provider  *Provider `json:"provider"`
 }
 
@@ -28,6 +31,15 @@ func (application *Application) GetProviderItem(providerName string) *ProviderIt
 	for _, providerItem := range application.Providers {
 		if providerItem.Name == providerName {
 			return providerItem
+		}
+	}
+	return nil
+}
+
+func (application *Application) GetProviderItemByType(providerType string) *ProviderItem {
+	for _, item := range application.Providers {
+		if item.Provider.Type == providerType {
+			return item
 		}
 	}
 	return nil

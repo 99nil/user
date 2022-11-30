@@ -17,7 +17,7 @@ package idp
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -48,12 +48,12 @@ func (idp *OktaIdProvider) SetHttpClient(client *http.Client) {
 }
 
 func (idp *OktaIdProvider) getConfig(hostUrl string, clientId string, clientSecret string, redirectUrl string) *oauth2.Config {
-	var endpoint = oauth2.Endpoint{
+	endpoint := oauth2.Endpoint{
 		TokenURL: fmt.Sprintf("%s/v1/token", hostUrl),
 		AuthURL:  fmt.Sprintf("%s/v1/authorize", hostUrl),
 	}
 
-	var config = &oauth2.Config{
+	config := &oauth2.Config{
 		// openid is required for authentication requests
 		// get more details via: https://developer.okta.com/docs/reference/api/oidc/#reserved-scopes
 		Scopes:       []string{"openid", "profile", "email"},
@@ -114,7 +114,7 @@ func (idp *OktaIdProvider) GetToken(code string) (*oauth2.Token, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}
@@ -178,7 +178,7 @@ func (idp *OktaIdProvider) GetUserInfo(token *oauth2.Token) (*UserInfo, error) {
 
 	defer resp.Body.Close()
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

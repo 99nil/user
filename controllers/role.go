@@ -17,7 +17,7 @@ package controllers
 import (
 	"encoding/json"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -48,6 +48,7 @@ func (c *ApiController) GetRoles() {
 	}
 }
 
+// GetRole
 // @Title GetRole
 // @Tag Role API
 // @Description get role
@@ -61,6 +62,7 @@ func (c *ApiController) GetRole() {
 	c.ServeJSON()
 }
 
+// UpdateRole
 // @Title UpdateRole
 // @Tag Role API
 // @Description update role
@@ -74,13 +76,15 @@ func (c *ApiController) UpdateRole() {
 	var role object.Role
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &role)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateRole(id, &role))
 	c.ServeJSON()
 }
 
+// AddRole
 // @Title AddRole
 // @Tag Role API
 // @Description add role
@@ -91,13 +95,15 @@ func (c *ApiController) AddRole() {
 	var role object.Role
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &role)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddRole(&role))
 	c.ServeJSON()
 }
 
+// DeleteRole
 // @Title DeleteRole
 // @Tag Role API
 // @Description delete role
@@ -108,7 +114,8 @@ func (c *ApiController) DeleteRole() {
 	var role object.Role
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &role)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteRole(&role))

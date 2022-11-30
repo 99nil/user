@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/casdoor/casdoor/util"
 	"xorm.io/core"
@@ -27,15 +28,33 @@ type Permission struct {
 	CreatedTime string `xorm:"varchar(100)" json:"createdTime"`
 	DisplayName string `xorm:"varchar(100)" json:"displayName"`
 
-	Users []string `xorm:"mediumtext" json:"users"`
-	Roles []string `xorm:"mediumtext" json:"roles"`
+	Users   []string `xorm:"mediumtext" json:"users"`
+	Roles   []string `xorm:"mediumtext" json:"roles"`
+	Domains []string `xorm:"mediumtext" json:"domains"`
 
+	Model        string   `xorm:"varchar(100)" json:"model"`
+	Adapter      string   `xorm:"varchar(100)" json:"adapter"`
 	ResourceType string   `xorm:"varchar(100)" json:"resourceType"`
 	Resources    []string `xorm:"mediumtext" json:"resources"`
 	Actions      []string `xorm:"mediumtext" json:"actions"`
 	Effect       string   `xorm:"varchar(100)" json:"effect"`
+	IsEnabled    bool     `json:"isEnabled"`
 
-	IsEnabled bool `json:"isEnabled"`
+	Submitter   string `xorm:"varchar(100)" json:"submitter"`
+	Approver    string `xorm:"varchar(100)" json:"approver"`
+	ApproveTime string `xorm:"varchar(100)" json:"approveTime"`
+	State       string `xorm:"varchar(100)" json:"state"`
+}
+
+type PermissionRule struct {
+	Ptype string `xorm:"varchar(100) index not null default ''" json:"ptype"`
+	V0    string `xorm:"varchar(100) index not null default ''" json:"v0"`
+	V1    string `xorm:"varchar(100) index not null default ''" json:"v1"`
+	V2    string `xorm:"varchar(100) index not null default ''" json:"v2"`
+	V3    string `xorm:"varchar(100) index not null default ''" json:"v3"`
+	V4    string `xorm:"varchar(100) index not null default ''" json:"v4"`
+	V5    string `xorm:"varchar(100) index not null default ''" json:"v5"`
+	Id    string `xorm:"varchar(100) index not null default ''" json:"id"`
 }
 
 func GetPermissionCount(owner, field, value string) int {
@@ -94,13 +113,28 @@ func GetPermission(id string) *Permission {
 
 func UpdatePermission(id string, permission *Permission) bool {
 	owner, name := util.GetOwnerAndNameFromId(id)
-	if getPermission(owner, name) == nil {
+	oldPermission := getPermission(owner, name)
+	if oldPermission == nil {
 		return false
 	}
 
 	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(permission)
 	if err != nil {
 		panic(err)
+	}
+
+	if affected != 0 {
+		removePolicies(oldPermission)
+		if oldPermission.Adapter != "" && oldPermission.Adapter != permission.Adapter {
+			isEmpty, _ := adapter.Engine.IsTableEmpty(oldPermission.Adapter)
+			if isEmpty {
+				err = adapter.Engine.DropTables(oldPermission.Adapter)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+		addPolicies(permission)
 	}
 
 	return affected != 0
@@ -112,6 +146,10 @@ func AddPermission(permission *Permission) bool {
 		panic(err)
 	}
 
+	if affected != 0 {
+		addPolicies(permission)
+	}
+
 	return affected != 0
 }
 
@@ -121,9 +159,93 @@ func DeletePermission(permission *Permission) bool {
 		panic(err)
 	}
 
+	if affected != 0 {
+		removePolicies(permission)
+		if permission.Adapter != "" && permission.Adapter != "permission_rule" {
+			isEmpty, _ := adapter.Engine.IsTableEmpty(permission.Adapter)
+			if isEmpty {
+				err = adapter.Engine.DropTables(permission.Adapter)
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
+	}
+
 	return affected != 0
 }
 
 func (permission *Permission) GetId() string {
 	return fmt.Sprintf("%s/%s", permission.Owner, permission.Name)
+}
+
+func GetPermissionsByUser(userId string) []*Permission {
+	permissions := []*Permission{}
+	err := adapter.Engine.Where("users like ?", "%"+userId+"%").Find(&permissions)
+	if err != nil {
+		panic(err)
+	}
+
+	return permissions
+}
+
+func GetPermissionsByRole(roleId string) []*Permission {
+	permissions := []*Permission{}
+	err := adapter.Engine.Where("roles like ?", "%"+roleId+"%").Find(&permissions)
+	if err != nil {
+		panic(err)
+	}
+
+	return permissions
+}
+
+func GetPermissionsBySubmitter(owner string, submitter string) []*Permission {
+	permissions := []*Permission{}
+	err := adapter.Engine.Desc("created_time").Find(&permissions, &Permission{Owner: owner, Submitter: submitter})
+	if err != nil {
+		panic(err)
+	}
+
+	return permissions
+}
+
+func MigratePermissionRule() {
+	models := []*Model{}
+	err := adapter.Engine.Find(&models, &Model{})
+	if err != nil {
+		panic(err)
+	}
+
+	isHit := false
+	for _, model := range models {
+		if strings.Contains(model.ModelText, "permission") {
+			// update model table
+			model.ModelText = strings.Replace(model.ModelText, "permission,", "", -1)
+			UpdateModel(model.GetId(), model)
+			isHit = true
+		}
+	}
+
+	if isHit {
+		// update permission_rule table
+		sql := "UPDATE `permission_rule`SET V0 = V1, V1 = V2, V2 = V3, V3 = V4, V4 = V5 WHERE V0 IN (SELECT CONCAT(owner, '/', name) AS permission_id FROM `permission`)"
+		_, err = adapter.Engine.Exec(sql)
+		if err != nil {
+			return
+		}
+	}
+}
+
+func ContainsAsterisk(userId string, users []string) bool {
+	containsAsterisk := false
+	group, _ := util.GetOwnerAndNameFromId(userId)
+	for _, user := range users {
+		permissionGroup, permissionUserName := util.GetOwnerAndNameFromId(user)
+		if permissionGroup == group && permissionUserName == "*" {
+			containsAsterisk = true
+			break
+		}
+	}
+
+	return containsAsterisk
 }

@@ -15,7 +15,9 @@
 package controllers
 
 import (
-	"github.com/astaxie/beego/utils/pagination"
+	"encoding/json"
+
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -26,9 +28,14 @@ import (
 // @Description get all records
 // @Param   pageSize     query    string  true        "The size of each page"
 // @Param   p     query    string  true        "The number of the page"
-// @Success 200 {array} object.Records The Response object
+// @Success 200 {object} object.Record The Response object
 // @router /get-records [get]
 func (c *ApiController) GetRecords() {
+	organization, ok := c.RequireAdmin()
+	if !ok {
+		return
+	}
+
 	limit := c.Input().Get("pageSize")
 	page := c.Input().Get("p")
 	field := c.Input().Get("field")
@@ -40,8 +47,9 @@ func (c *ApiController) GetRecords() {
 		c.ServeJSON()
 	} else {
 		limit := util.ParseInt(limit)
-		paginator := pagination.SetPaginator(c.Ctx, limit, int64(object.GetRecordCount(field, value)))
-		records := object.GetPaginationRecords(paginator.Offset(), limit, field, value, sortField, sortOrder)
+		filterRecord := &object.Record{Organization: organization}
+		paginator := pagination.SetPaginator(c.Ctx, limit, int64(object.GetRecordCount(field, value, filterRecord)))
+		records := object.GetPaginationRecords(paginator.Offset(), limit, field, value, sortField, sortOrder, filterRecord)
 		c.ResponseOk(records, paginator.Nums())
 	}
 }
@@ -50,8 +58,8 @@ func (c *ApiController) GetRecords() {
 // @Tag Record API
 // @Title GetRecordsByFilter
 // @Description get records by filter
-// @Param   body    body   object.Records  true  "filter Record message"
-// @Success 200 {array} object.Records The Response object
+// @Param   filter  body string     true  "filter Record message"
+// @Success 200 {object} object.Record The Response object
 // @router /get-records-filter [post]
 func (c *ApiController) GetRecordsByFilter() {
 	body := string(c.Ctx.Input.RequestBody)
@@ -59,9 +67,29 @@ func (c *ApiController) GetRecordsByFilter() {
 	record := &object.Record{}
 	err := util.JsonToStruct(body, record)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = object.GetRecordsByField(record)
+	c.ServeJSON()
+}
+
+// AddRecord
+// @Title AddRecord
+// @Tag Record API
+// @Description add a record
+// @Param   body    body   object.Record  true        "The details of the record"
+// @Success 200 {object} controllers.Response The Response object
+// @router /add-record [post]
+func (c *ApiController) AddRecord() {
+	var record object.Record
+	err := json.Unmarshal(c.Ctx.Input.RequestBody, &record)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.Data["json"] = wrapActionResponse(object.AddRecord(&record))
 	c.ServeJSON()
 }

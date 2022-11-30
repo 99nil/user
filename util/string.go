@@ -20,7 +20,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -52,8 +52,10 @@ func ParseFloat(s string) float64 {
 }
 
 func ParseBool(s string) bool {
-	if s == "\x01" {
+	if s == "\x01" || s == "true" {
 		return true
+	} else if s == "false" {
+		return false
 	}
 
 	i := ParseInt(s)
@@ -67,7 +69,7 @@ func BoolToString(b bool) string {
 	return "0"
 }
 
-//CamelToSnakeCase This function transform camelcase in snakecase LoremIpsum in lorem_ipsum
+// CamelToSnakeCase This function transform camelcase in snakecase LoremIpsum in lorem_ipsum
 func CamelToSnakeCase(camel string) string {
 	var buf bytes.Buffer
 	for _, c := range camel {
@@ -121,8 +123,8 @@ func GenerateSimpleTimeId() string {
 	return t
 }
 
-func GetId(name string) string {
-	return fmt.Sprintf("admin/%s", name)
+func GetId(owner, name string) string {
+	return fmt.Sprintf("%s/%s", owner, name)
 }
 
 func GetMd5Hash(text string) string {
@@ -166,7 +168,7 @@ func GetMinLenStr(strs ...string) string {
 }
 
 func ReadStringFromPath(path string) string {
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		panic(err)
 	}
@@ -175,7 +177,7 @@ func ReadStringFromPath(path string) string {
 }
 
 func WriteStringToPath(s string, path string) {
-	err := ioutil.WriteFile(path, []byte(s), 0644)
+	err := os.WriteFile(path, []byte(s), 0o644)
 	if err != nil {
 		panic(err)
 	}

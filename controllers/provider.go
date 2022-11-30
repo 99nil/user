@@ -16,7 +16,8 @@ package controllers
 
 import (
 	"encoding/json"
-	"github.com/astaxie/beego/utils/pagination"
+
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -47,6 +48,31 @@ func (c *ApiController) GetProviders() {
 	}
 }
 
+// GetGlobalProviders
+// @Title GetGlobalProviders
+// @Tag Provider API
+// @Description get Global providers
+// @Success 200 {array} object.Provider The Response object
+// @router /get-global-providers [get]
+func (c *ApiController) GetGlobalProviders() {
+	limit := c.Input().Get("pageSize")
+	page := c.Input().Get("p")
+	field := c.Input().Get("field")
+	value := c.Input().Get("value")
+	sortField := c.Input().Get("sortField")
+	sortOrder := c.Input().Get("sortOrder")
+	if limit == "" || page == "" {
+		c.Data["json"] = object.GetMaskedProviders(object.GetGlobalProviders())
+		c.ServeJSON()
+	} else {
+		limit := util.ParseInt(limit)
+		paginator := pagination.SetPaginator(c.Ctx, limit, int64(object.GetGlobalProviderCount(field, value)))
+		providers := object.GetMaskedProviders(object.GetPaginationGlobalProviders(paginator.Offset(), limit, field, value, sortField, sortOrder))
+		c.ResponseOk(providers, paginator.Nums())
+	}
+}
+
+// GetProvider
 // @Title GetProvider
 // @Tag Provider API
 // @Description get provider
@@ -55,11 +81,11 @@ func (c *ApiController) GetProviders() {
 // @router /get-provider [get]
 func (c *ApiController) GetProvider() {
 	id := c.Input().Get("id")
-
 	c.Data["json"] = object.GetMaskedProvider(object.GetProvider(id))
 	c.ServeJSON()
 }
 
+// UpdateProvider
 // @Title UpdateProvider
 // @Tag Provider API
 // @Description update provider
@@ -73,13 +99,15 @@ func (c *ApiController) UpdateProvider() {
 	var provider object.Provider
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &provider)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateProvider(id, &provider))
 	c.ServeJSON()
 }
 
+// AddProvider
 // @Title AddProvider
 // @Tag Provider API
 // @Description add provider
@@ -90,13 +118,21 @@ func (c *ApiController) AddProvider() {
 	var provider object.Provider
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &provider)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
+	}
+
+	count := object.GetProviderCount("", "", "")
+	if err := checkQuotaForProvider(count); err != nil {
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddProvider(&provider))
 	c.ServeJSON()
 }
 
+// DeleteProvider
 // @Title DeleteProvider
 // @Tag Provider API
 // @Description delete provider
@@ -107,7 +143,8 @@ func (c *ApiController) DeleteProvider() {
 	var provider object.Provider
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &provider)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteProvider(&provider))

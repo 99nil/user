@@ -20,7 +20,13 @@ import (
 
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
+	"github.com/duo-labs/webauthn/webauthn"
 	"xorm.io/core"
+)
+
+const (
+	UserPropertiesWechatUnionId = "wechatUnionId"
+	UserPropertiesWechatOpenId  = "wechatOpenId"
 )
 
 type User struct {
@@ -72,33 +78,44 @@ type User struct {
 	LastSigninTime string `xorm:"varchar(100)" json:"lastSigninTime"`
 	LastSigninIp   string `xorm:"varchar(100)" json:"lastSigninIp"`
 
-	Github        string `xorm:"varchar(100)" json:"github"`
-	Google        string `xorm:"varchar(100)" json:"google"`
-	QQ            string `xorm:"qq varchar(100)" json:"qq"`
-	WeChat        string `xorm:"wechat varchar(100)" json:"wechat"`
-	WeChatUnionId string `xorm:"varchar(100)" json:"unionId"`
-	Facebook      string `xorm:"facebook varchar(100)" json:"facebook"`
-	DingTalk      string `xorm:"dingtalk varchar(100)" json:"dingtalk"`
-	Weibo         string `xorm:"weibo varchar(100)" json:"weibo"`
-	Gitee         string `xorm:"gitee varchar(100)" json:"gitee"`
-	LinkedIn      string `xorm:"linkedin varchar(100)" json:"linkedin"`
-	Wecom         string `xorm:"wecom varchar(100)" json:"wecom"`
-	Lark          string `xorm:"lark varchar(100)" json:"lark"`
-	Gitlab        string `xorm:"gitlab varchar(100)" json:"gitlab"`
-	Adfs          string `xorm:"adfs varchar(100)" json:"adfs"`
-	Baidu         string `xorm:"baidu varchar(100)" json:"baidu"`
-	Alipay        string `xorm:"alipay varchar(100)" json:"alipay"`
-	Casdoor       string `xorm:"casdoor varchar(100)" json:"casdoor"`
-	Infoflow      string `xorm:"infoflow varchar(100)" json:"infoflow"`
-	Apple         string `xorm:"apple varchar(100)" json:"apple"`
-	AzureAD       string `xorm:"azuread varchar(100)" json:"azuread"`
-	Slack         string `xorm:"slack varchar(100)" json:"slack"`
-	Steam         string `xorm:"steam varchar(100)" json:"steam"`
-	Okta          string `xorm:"okta varchar(100)" json:"okta"`
-	Custom        string `xorm:"custom varchar(100)" json:"custom"`
+	GitHub   string `xorm:"github varchar(100)" json:"github"`
+	Google   string `xorm:"varchar(100)" json:"google"`
+	QQ       string `xorm:"qq varchar(100)" json:"qq"`
+	WeChat   string `xorm:"wechat varchar(100)" json:"wechat"`
+	Facebook string `xorm:"facebook varchar(100)" json:"facebook"`
+	DingTalk string `xorm:"dingtalk varchar(100)" json:"dingtalk"`
+	Weibo    string `xorm:"weibo varchar(100)" json:"weibo"`
+	Gitee    string `xorm:"gitee varchar(100)" json:"gitee"`
+	LinkedIn string `xorm:"linkedin varchar(100)" json:"linkedin"`
+	Wecom    string `xorm:"wecom varchar(100)" json:"wecom"`
+	Lark     string `xorm:"lark varchar(100)" json:"lark"`
+	Gitlab   string `xorm:"gitlab varchar(100)" json:"gitlab"`
+	Adfs     string `xorm:"adfs varchar(100)" json:"adfs"`
+	Baidu    string `xorm:"baidu varchar(100)" json:"baidu"`
+	Alipay   string `xorm:"alipay varchar(100)" json:"alipay"`
+	Casdoor  string `xorm:"casdoor varchar(100)" json:"casdoor"`
+	Infoflow string `xorm:"infoflow varchar(100)" json:"infoflow"`
+	Apple    string `xorm:"apple varchar(100)" json:"apple"`
+	AzureAD  string `xorm:"azuread varchar(100)" json:"azuread"`
+	Slack    string `xorm:"slack varchar(100)" json:"slack"`
+	Steam    string `xorm:"steam varchar(100)" json:"steam"`
+	Bilibili string `xorm:"bilibili varchar(100)" json:"bilibili"`
+	Okta     string `xorm:"okta varchar(100)" json:"okta"`
+	Douyin   string `xorm:"douyin varchar(100)" json:"douyin"`
+	Custom   string `xorm:"custom varchar(100)" json:"custom"`
+
+	WebauthnCredentials []webauthn.Credential `xorm:"webauthnCredentials blob" json:"webauthnCredentials"`
 
 	Ldap       string            `xorm:"ldap varchar(100)" json:"ldap"`
 	Properties map[string]string `json:"properties"`
+
+	Roles       []*Role       `json:"roles"`
+	Permissions []*Permission `json:"permissions"`
+
+	LastSigninWrongTime string `xorm:"varchar(100)" json:"lastSigninWrongTime"`
+	SigninWrongTimes    int    `json:"signinWrongTimes"`
+
+	ManagedAccounts []ManagedAccount `xorm:"managedAccounts blob" json:"managedAccounts"`
 }
 
 type Userinfo struct {
@@ -111,6 +128,13 @@ type Userinfo struct {
 	Avatar      string `json:"picture,omitempty"`
 	Address     string `json:"address,omitempty"`
 	Phone       string `json:"phone,omitempty"`
+}
+
+type ManagedAccount struct {
+	Application string `xorm:"varchar(100)" json:"application"`
+	Username    string `xorm:"varchar(100)" json:"username"`
+	Password    string `xorm:"varchar(100)" json:"password"`
+	SigninUrl   string `xorm:"varchar(200)" json:"signinUrl"`
 }
 
 func GetGlobalUserCount(field, value string) int {
@@ -235,7 +259,7 @@ func getUserByWechatId(wechatOpenId string, wechatUnionId string) *User {
 		wechatUnionId = wechatOpenId
 	}
 	user := &User{}
-	existed, err := adapter.Engine.Where("wechat = ? OR wechat = ? OR unionid = ?", wechatOpenId, wechatUnionId, wechatUnionId).Get(user)
+	existed, err := adapter.Engine.Where("wechat = ? OR wechat = ?", wechatOpenId, wechatUnionId).Get(user)
 	if err != nil {
 		panic(err)
 	}
@@ -265,6 +289,42 @@ func GetUserByEmail(owner string, email string) *User {
 	}
 }
 
+func GetUserByPhone(owner string, phone string) *User {
+	if owner == "" || phone == "" {
+		return nil
+	}
+
+	user := User{Owner: owner, Phone: phone}
+	existed, err := adapter.Engine.Get(&user)
+	if err != nil {
+		panic(err)
+	}
+
+	if existed {
+		return &user
+	} else {
+		return nil
+	}
+}
+
+func GetUserByUserId(owner string, userId string) *User {
+	if owner == "" || userId == "" {
+		return nil
+	}
+
+	user := User{Owner: owner, Id: userId}
+	existed, err := adapter.Engine.Get(&user)
+	if err != nil {
+		panic(err)
+	}
+
+	if existed {
+		return &user
+	} else {
+		return nil
+	}
+}
+
 func GetUser(id string) *User {
 	owner, name := util.GetOwnerAndNameFromId(id)
 	return getUser(owner, name)
@@ -282,6 +342,12 @@ func GetMaskedUser(user *User) *User {
 
 	if user.Password != "" {
 		user.Password = "***"
+	}
+
+	if user.ManagedAccounts != nil {
+		for _, manageAccount := range user.ManagedAccounts {
+			manageAccount.Password = "***"
+		}
 	}
 	return user
 }
@@ -314,19 +380,29 @@ func UpdateUser(id string, user *User, columns []string, isGlobalAdmin bool) boo
 		return false
 	}
 
+	if name != user.Name {
+		err := userChangeTrigger(name, user.Name)
+		if err != nil {
+			return false
+		}
+	}
+
 	if user.Password == "***" {
 		user.Password = oldUser.Password
 	}
 	user.UpdateUserHash()
 
 	if user.Avatar != oldUser.Avatar && user.Avatar != "" && user.PermanentAvatar != "*" {
-		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar)
+		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar, false)
 	}
 
 	if len(columns) == 0 {
-		columns = []string{"owner", "display_name", "avatar",
+		columns = []string{
+			"owner", "display_name", "avatar",
 			"location", "address", "region", "language", "affiliation", "title", "homepage", "bio", "score", "tag", "signup_application",
-			"is_admin", "is_global_admin", "is_forbidden", "is_deleted", "hash", "is_default_avatar", "properties"}
+			"is_admin", "is_global_admin", "is_forbidden", "is_deleted", "hash", "is_default_avatar", "properties", "webauthnCredentials", "managedAccounts",
+			"signin_wrong_times", "last_signin_wrong_time",
+		}
 	}
 	if isGlobalAdmin {
 		columns = append(columns, "name", "email", "phone")
@@ -347,10 +423,17 @@ func UpdateUserForAllFields(id string, user *User) bool {
 		return false
 	}
 
+	if name != user.Name {
+		err := userChangeTrigger(name, user.Name)
+		if err != nil {
+			return false
+		}
+	}
+
 	user.UpdateUserHash()
 
 	if user.Avatar != oldUser.Avatar && user.Avatar != "" {
-		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar)
+		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar, false)
 	}
 
 	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(user)
@@ -371,12 +454,16 @@ func AddUser(user *User) bool {
 	}
 
 	organization := GetOrganizationByUser(user)
+	if organization == nil {
+		return false
+	}
+
 	user.UpdateUserPassword(organization)
 
 	user.UpdateUserHash()
 	user.PreHash = user.Hash
 
-	user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar)
+	user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar, false)
 
 	user.Ranking = GetUserCount(user.Owner, "", "") + 1
 
@@ -393,15 +480,15 @@ func AddUsers(users []*User) bool {
 		return false
 	}
 
-	//organization := GetOrganizationByUser(users[0])
+	// organization := GetOrganizationByUser(users[0])
 	for _, user := range users {
 		// this function is only used for syncer or batch upload, so no need to encrypt the password
-		//user.UpdateUserPassword(organization)
+		// user.UpdateUserPassword(organization)
 
 		user.UpdateUserHash()
 		user.PreHash = user.Hash
 
-		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar)
+		user.PermanentAvatar = getPermanentAvatarUrl(user.Owner, user.Name, user.Avatar, true)
 	}
 
 	affected, err := adapter.Engine.Insert(users)
@@ -415,7 +502,7 @@ func AddUsers(users []*User) bool {
 }
 
 func AddUsersInBatch(users []*User) bool {
-	batchSize := 1000
+	batchSize := conf.GetConfigBatchSize()
 
 	if len(users) == 0 {
 		return false
@@ -449,16 +536,8 @@ func DeleteUser(user *User) bool {
 	return affected != 0
 }
 
-func GetUserInfo(userId string, scope string, aud string, host string) (*Userinfo, error) {
-	user := GetUser(userId)
-	if user == nil {
-		return nil, fmt.Errorf("the user: %s doesn't exist", userId)
-	}
-	origin := conf.GetConfigString("origin")
+func GetUserInfo(user *User, scope string, aud string, host string) *Userinfo {
 	_, originBackend := getOriginFromHost(host)
-	if origin != "" {
-		originBackend = origin
-	}
 
 	resp := Userinfo{
 		Sub: user.Id,
@@ -479,7 +558,7 @@ func GetUserInfo(userId string, scope string, aud string, host string) (*Userinf
 	if strings.Contains(scope, "phone") {
 		resp.Phone = user.Phone
 	}
-	return &resp, nil
+	return &resp
 }
 
 func LinkUserAccount(user *User, field string, value string) bool {
@@ -492,4 +571,72 @@ func (user *User) GetId() string {
 
 func isUserIdGlobalAdmin(userId string) bool {
 	return strings.HasPrefix(userId, "built-in/")
+}
+
+func ExtendUserWithRolesAndPermissions(user *User) {
+	if user == nil {
+		return
+	}
+
+	user.Roles = GetRolesByUser(user.GetId())
+	user.Permissions = GetPermissionsByUser(user.GetId())
+}
+
+func userChangeTrigger(oldName string, newName string) error {
+	session := adapter.Engine.NewSession()
+	defer session.Close()
+
+	err := session.Begin()
+	if err != nil {
+		return err
+	}
+
+	var roles []*Role
+	err = adapter.Engine.Find(&roles)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		for j, u := range role.Users {
+			// u = organization/username
+			split := strings.Split(u, "/")
+			if split[1] == oldName {
+				split[1] = newName
+				role.Users[j] = split[0] + "/" + split[1]
+			}
+		}
+		_, err = session.Where("name=?", role.Name).Update(role)
+		if err != nil {
+			return err
+		}
+	}
+
+	var permissions []*Permission
+	err = adapter.Engine.Find(&permissions)
+	if err != nil {
+		return err
+	}
+	for _, permission := range permissions {
+		for j, u := range permission.Users {
+			// u = organization/username
+			split := strings.Split(u, "/")
+			if split[1] == oldName {
+				split[1] = newName
+				permission.Users[j] = split[0] + "/" + split[1]
+			}
+		}
+		_, err = session.Where("name=?", permission.Name).Update(permission)
+		if err != nil {
+			return err
+		}
+	}
+
+	resource := new(Resource)
+	resource.User = newName
+	_, err = session.Where("user=?", oldName).Update(resource)
+	if err != nil {
+		return err
+	}
+
+	return session.Commit()
 }

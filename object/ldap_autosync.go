@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/astaxie/beego/logs"
+	"github.com/beego/beego/logs"
 	"github.com/casdoor/casdoor/util"
 )
 
@@ -31,7 +31,8 @@ func GetLdapAutoSynchronizer() *LdapAutoSynchronizer {
 	return globalLdapAutoSynchronizer
 }
 
-//start autosync for specified ldap, old existing autosync goroutine will be ceased
+// StartAutoSync
+// start autosync for specified ldap, old existing autosync goroutine will be ceased
 func (l *LdapAutoSynchronizer) StartAutoSync(ldapId string) error {
 	l.Lock()
 	defer l.Unlock()
@@ -48,7 +49,7 @@ func (l *LdapAutoSynchronizer) StartAutoSync(ldapId string) error {
 	stopChan := make(chan struct{})
 	l.ldapIdToStopChan[ldapId] = stopChan
 	logs.Info(fmt.Sprintf("autoSync started for %s", ldap.Id))
-	util.SafeGoroutine(func() {l.syncRoutine(ldap, stopChan)})
+	util.SafeGoroutine(func() { l.syncRoutine(ldap, stopChan) })
 	return nil
 }
 
@@ -61,7 +62,7 @@ func (l *LdapAutoSynchronizer) StopAutoSync(ldapId string) {
 	}
 }
 
-//autosync goroutine
+// autosync goroutine
 func (l *LdapAutoSynchronizer) syncRoutine(ldap *Ldap, stopChan chan struct{}) {
 	ticker := time.NewTicker(time.Duration(ldap.AutoSync) * time.Minute)
 	defer ticker.Stop()
@@ -74,7 +75,7 @@ func (l *LdapAutoSynchronizer) syncRoutine(ldap *Ldap, stopChan chan struct{}) {
 		}
 
 		UpdateLdapSyncTime(ldap.Id)
-		//fetch all users
+		// fetch all users
 		conn, err := GetLdapConn(ldap.Host, ldap.Port, ldap.Admin, ldap.Passwd)
 		if err != nil {
 			logs.Warning(fmt.Sprintf("autoSync failed for %s, error %s", ldap.Id, err))
@@ -93,10 +94,10 @@ func (l *LdapAutoSynchronizer) syncRoutine(ldap *Ldap, stopChan chan struct{}) {
 			logs.Info(fmt.Sprintf("ldap autosync success, %d new users, %d existing users", len(users)-len(*existed), len(*existed)))
 		}
 	}
-
 }
 
-//start all autosync goroutine for existing ldap servers in each organizations
+// LdapAutoSynchronizerStartUpAll
+// start all autosync goroutine for existing ldap servers in each organizations
 func (l *LdapAutoSynchronizer) LdapAutoSynchronizerStartUpAll() {
 	organizations := []*Organization{}
 	err := adapter.Engine.Desc("created_time").Find(&organizations)

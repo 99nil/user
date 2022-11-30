@@ -43,6 +43,11 @@ type OidcDiscovery struct {
 }
 
 func getOriginFromHost(host string) (string, string) {
+	origin := conf.GetConfigString("origin")
+	if origin != "" {
+		return origin, origin
+	}
+
 	protocol := "https://"
 	if strings.HasPrefix(host, "localhost") {
 		protocol = "http://"
@@ -57,12 +62,6 @@ func getOriginFromHost(host string) (string, string) {
 
 func GetOidcDiscovery(host string) OidcDiscovery {
 	originFrontend, originBackend := getOriginFromHost(host)
-
-	origin := conf.GetConfigString("origin")
-	if origin != "" {
-		originFrontend = origin
-		originBackend = origin
-	}
 
 	// Examples:
 	// https://login.okta.com/.well-known/openid-configuration
@@ -93,11 +92,11 @@ func GetOidcDiscovery(host string) OidcDiscovery {
 func GetJsonWebKeySet() (jose.JSONWebKeySet, error) {
 	certs := GetCerts("admin")
 	jwks := jose.JSONWebKeySet{}
-	//follows the protocol rfc 7517(draft)
-	//link here: https://self-issued.info/docs/draft-ietf-jose-json-web-key.html
-	//or https://datatracker.ietf.org/doc/html/draft-ietf-jose-json-web-key
+	// follows the protocol rfc 7517(draft)
+	// link here: https://self-issued.info/docs/draft-ietf-jose-json-web-key.html
+	// or https://datatracker.ietf.org/doc/html/draft-ietf-jose-json-web-key
 	for _, cert := range certs {
-		certPemBlock := []byte(cert.PublicKey)
+		certPemBlock := []byte(cert.Certificate)
 		certDerBlock, _ := pem.Decode(certPemBlock)
 		x509Cert, _ := x509.ParseCertificate(certDerBlock.Bytes)
 

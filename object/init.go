@@ -15,19 +15,30 @@
 package object
 
 import (
-	"io/ioutil"
+	"encoding/gob"
+	"fmt"
+	"os"
 
+	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
+	"github.com/duo-labs/webauthn/webauthn"
 )
 
 func InitDb() {
+	MigratePermissionRule()
+
 	existed := initBuiltInOrganization()
 	if !existed {
+		initBuiltInModel()
+		initBuiltInPermission()
+		initBuiltInProvider()
 		initBuiltInUser()
 		initBuiltInApplication()
 		initBuiltInCert()
 		initBuiltInLdap()
 	}
+
+	initWebAuthn()
 }
 
 func initBuiltInOrganization() bool {
@@ -42,11 +53,41 @@ func initBuiltInOrganization() bool {
 		CreatedTime:   util.GetCurrentTime(),
 		DisplayName:   "Built-in Organization",
 		WebsiteUrl:    "https://example.com",
-		Favicon:       "https://cdn.casbin.com/static/favicon.ico",
+		Favicon:       fmt.Sprintf("%s/img/casbin/favicon.ico", conf.GetConfigString("staticBaseUrl")),
 		PasswordType:  "plain",
 		PhonePrefix:   "86",
-		DefaultAvatar: "https://casbin.org/img/casbin.svg",
+		DefaultAvatar: fmt.Sprintf("%s/img/casbin.svg", conf.GetConfigString("staticBaseUrl")),
 		Tags:          []string{},
+		Languages:     []string{"en", "zh", "es", "fr", "de", "ja", "ko", "ru"},
+		AccountItems: []*AccountItem{
+			{Name: "Organization", Visible: true, ViewRule: "Public", ModifyRule: "Admin"},
+			{Name: "ID", Visible: true, ViewRule: "Public", ModifyRule: "Immutable"},
+			{Name: "Name", Visible: true, ViewRule: "Public", ModifyRule: "Admin"},
+			{Name: "Display name", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Avatar", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "User type", Visible: true, ViewRule: "Public", ModifyRule: "Admin"},
+			{Name: "Password", Visible: true, ViewRule: "Self", ModifyRule: "Self"},
+			{Name: "Email", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Phone", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Country/Region", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Location", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Affiliation", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Title", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Homepage", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Bio", Visible: true, ViewRule: "Public", ModifyRule: "Self"},
+			{Name: "Tag", Visible: true, ViewRule: "Public", ModifyRule: "Admin"},
+			{Name: "Signup application", Visible: true, ViewRule: "Public", ModifyRule: "Admin"},
+			{Name: "Roles", Visible: true, ViewRule: "Public", ModifyRule: "Immutable"},
+			{Name: "Permissions", Visible: true, ViewRule: "Public", ModifyRule: "Immutable"},
+			{Name: "3rd-party logins", Visible: true, ViewRule: "Self", ModifyRule: "Self"},
+			{Name: "Properties", Visible: false, ViewRule: "Admin", ModifyRule: "Admin"},
+			{Name: "Is admin", Visible: true, ViewRule: "Admin", ModifyRule: "Admin"},
+			{Name: "Is global admin", Visible: true, ViewRule: "Admin", ModifyRule: "Admin"},
+			{Name: "Is forbidden", Visible: true, ViewRule: "Admin", ModifyRule: "Admin"},
+			{Name: "Is deleted", Visible: true, ViewRule: "Admin", ModifyRule: "Admin"},
+			{Name: "WebAuthn credentials", Visible: true, ViewRule: "Self", ModifyRule: "Self"},
+			{Name: "Managed accounts", Visible: true, ViewRule: "Self", ModifyRule: "Self"},
+		},
 	}
 	AddOrganization(organization)
 	return false
@@ -66,7 +107,7 @@ func initBuiltInUser() {
 		Type:              "normal-user",
 		Password:          "123",
 		DisplayName:       "Admin",
-		Avatar:            "https://casbin.org/img/casbin.svg",
+		Avatar:            fmt.Sprintf("%s/img/casbin.svg", conf.GetConfigString("staticBaseUrl")),
 		Email:             "admin@example.com",
 		Phone:             "12345678910",
 		Address:           []string{},
@@ -78,7 +119,7 @@ func initBuiltInUser() {
 		IsGlobalAdmin:     true,
 		IsForbidden:       false,
 		IsDeleted:         false,
-		SignupApplication: "built-in-app",
+		SignupApplication: "app-built-in",
 		CreatedIp:         "127.0.0.1",
 		Properties:        make(map[string]string),
 	}
@@ -102,7 +143,9 @@ func initBuiltInApplication() {
 		Cert:           "cert-built-in",
 		EnablePassword: true,
 		EnableSignUp:   true,
-		Providers:      []*ProviderItem{},
+		Providers: []*ProviderItem{
+			{Name: "provider_captcha_default", CanSignUp: false, CanSignIn: false, CanUnlink: false, Prompted: false, AlertType: "None", Rule: "None", Provider: nil},
+		},
 		SignupItems: []*SignupItem{
 			{Name: "ID", Visible: false, Required: true, Prompted: false, Rule: "Random"},
 			{Name: "Username", Visible: true, Required: true, Prompted: false, Rule: "None"},
@@ -115,6 +158,7 @@ func initBuiltInApplication() {
 		},
 		RedirectUris:  []string{},
 		ExpireInHours: 168,
+		FormOffset:    8,
 	}
 	AddApplication(application)
 }
@@ -122,11 +166,11 @@ func initBuiltInApplication() {
 func readTokenFromFile() (string, string) {
 	pemPath := "./object/token_jwt_key.pem"
 	keyPath := "./object/token_jwt_key.key"
-	pem, err := ioutil.ReadFile(pemPath)
+	pem, err := os.ReadFile(pemPath)
 	if err != nil {
 		return "", ""
 	}
-	key, err := ioutil.ReadFile(keyPath)
+	key, err := os.ReadFile(keyPath)
 	if err != nil {
 		return "", ""
 	}
@@ -134,7 +178,7 @@ func readTokenFromFile() (string, string) {
 }
 
 func initBuiltInCert() {
-	tokenJwtPublicKey, tokenJwtPrivateKey := readTokenFromFile()
+	tokenJwtCertificate, tokenJwtPrivateKey := readTokenFromFile()
 	cert := getCert("admin", "cert-built-in")
 	if cert != nil {
 		return
@@ -150,7 +194,7 @@ func initBuiltInCert() {
 		CryptoAlgorithm: "RS256",
 		BitSize:         4096,
 		ExpireInYears:   20,
-		PublicKey:       tokenJwtPublicKey,
+		Certificate:     tokenJwtCertificate,
 		PrivateKey:      tokenJwtPrivateKey,
 	}
 	AddCert(cert)
@@ -175,4 +219,76 @@ func initBuiltInLdap() {
 		LastSync:   "",
 	}
 	AddLdap(ldap)
+}
+
+func initBuiltInProvider() {
+	provider := GetProvider(util.GetId("admin", "provider_captcha_default"))
+	if provider != nil {
+		return
+	}
+
+	provider = &Provider{
+		Owner:       "admin",
+		Name:        "provider_captcha_default",
+		CreatedTime: util.GetCurrentTime(),
+		DisplayName: "Captcha Default",
+		Category:    "Captcha",
+		Type:        "Default",
+	}
+	AddProvider(provider)
+}
+
+func initWebAuthn() {
+	gob.Register(webauthn.SessionData{})
+}
+
+func initBuiltInModel() {
+	model := GetModel("built-in/model-built-in")
+	if model != nil {
+		return
+	}
+
+	model = &Model{
+		Owner:       "built-in",
+		Name:        "model-built-in",
+		CreatedTime: util.GetCurrentTime(),
+		DisplayName: "Built-in Model",
+		IsEnabled:   true,
+		ModelText: `[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = r.sub == p.sub && r.obj == p.obj && r.act == p.act`,
+	}
+	AddModel(model)
+}
+
+func initBuiltInPermission() {
+	permission := GetPermission("built-in/permission-built-in")
+	if permission != nil {
+		return
+	}
+
+	permission = &Permission{
+		Owner:        "built-in",
+		Name:         "permission-built-in",
+		CreatedTime:  util.GetCurrentTime(),
+		DisplayName:  "Built-in Permission",
+		Users:        []string{"built-in/*"},
+		Roles:        []string{},
+		Domains:      []string{},
+		Model:        "model-built-in",
+		ResourceType: "Application",
+		Resources:    []string{"app-built-in"},
+		Actions:      []string{"Read", "Write", "Admin"},
+		Effect:       "Allow",
+		IsEnabled:    true,
+	}
+	AddPermission(permission)
 }

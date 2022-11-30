@@ -12,11 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {Button, Col, Modal, Row, Input,} from "antd";
+import {Button, Col, Input, Modal, Row} from "antd";
 import i18next from "i18next";
 import React from "react";
-import * as Setting from "./Setting"
-import * as UserBackend from "./backend/UserBackend"
+import * as Setting from "./Setting";
+import * as UserBackend from "./backend/UserBackend";
 import {CountDownInput} from "./common/CountDownInput";
 import {MailOutlined, PhoneOutlined} from "@ant-design/icons";
 
@@ -25,7 +25,7 @@ export const ResetModal = (props) => {
   const [confirmLoading, setConfirmLoading] = React.useState(false);
   const [dest, setDest] = React.useState("");
   const [code, setCode] = React.useState("");
-  const {buttonText, destType, org} = props;
+  const {buttonText, destType, application} = props;
 
   const showModal = () => {
     setVisible(true);
@@ -53,12 +53,15 @@ export const ResetModal = (props) => {
         Setting.showMessage("error", i18next.t("user:" + res.msg));
         setConfirmLoading(false);
       }
-    })
-  }
+    });
+  };
 
-  let placeHolder = "";
-  if (destType === "email") placeHolder = i18next.t("user:Input your email");
-  else if (destType === "phone") placeHolder = i18next.t("user:Input your phone number");
+  let placeholder = "";
+  if (destType === "email") {
+    placeholder = i18next.t("user:Input your email");
+  } else if (destType === "phone") {
+    placeholder = i18next.t("user:Input your phone number");
+  }
 
   return (
     <Row>
@@ -81,7 +84,7 @@ export const ResetModal = (props) => {
             <Input
               addonBefore={destType === "email" ? i18next.t("user:New Email") : i18next.t("user:New phone")}
               prefix={destType === "email" ? <MailOutlined /> : <PhoneOutlined />}
-              placeholder={placeHolder}
+              placeholder={placeholder}
               onChange={e => setDest(e.target.value)}
             />
           </Row>
@@ -89,13 +92,14 @@ export const ResetModal = (props) => {
             <CountDownInput
               textBefore={i18next.t("code:Code You Received")}
               onChange={setCode}
-              onButtonClickArgs={[dest, destType, `${org?.owner}/${org?.name}`]}
+              onButtonClickArgs={[dest, destType, Setting.getApplicationName(application)]}
+              application={application}
             />
           </Row>
         </Col>
       </Modal>
     </Row>
-  )
-}
+  );
+};
 
 export default ResetModal;

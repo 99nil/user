@@ -15,24 +15,19 @@
 package util
 
 import (
-	"fmt"
+	"testing"
 
-	"github.com/astaxie/beego/logs"
+	"github.com/stretchr/testify/assert"
 )
 
-func SafeGoroutine(fn func()) {
-	var err error
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				var ok bool
-				err, ok = r.(error)
-				if !ok {
-					err = fmt.Errorf("%v", r)
-				}
-				logs.Error("goroutine panic: %v", err)
-			}
-		}()
-		fn()
-	}()
+func TestGetCpuUsage(t *testing.T) {
+	usage, err := GetCpuUsage()
+	assert.Nil(t, err)
+	t.Log(usage)
+}
+
+func TestGetMemoryUsage(t *testing.T) {
+	used, total, err := GetMemoryUsage()
+	assert.Nil(t, err)
+	t.Log(used, total)
 }

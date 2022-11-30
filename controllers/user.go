@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -80,19 +80,27 @@ func (c *ApiController) GetUsers() {
 // @Title GetUser
 // @Tag User API
 // @Description get user
-// @Param   id     query    string  true        "The id of the user"
+// @Param   id     query    string  true         "The id of the user"
+// @Param   owner  query    string  false        "The owner of the user"
+// @Param   email  query    string  false 	     "The email of the user"
+// @Param   phone  query    string  false 	     "The phone of the user"
 // @Success 200 {object} object.User The Response object
 // @router /get-user [get]
 func (c *ApiController) GetUser() {
 	id := c.Input().Get("id")
-	owner := c.Input().Get("owner")
 	email := c.Input().Get("email")
-	userOwner, _ := util.GetOwnerAndNameFromId(id)
-	organization := object.GetOrganization(fmt.Sprintf("%s/%s", "admin", userOwner))
+	phone := c.Input().Get("phone")
+	userId := c.Input().Get("userId")
 
+	owner := c.Input().Get("owner")
+	if owner == "" {
+		owner, _ = util.GetOwnerAndNameFromId(id)
+	}
+
+	organization := object.GetOrganization(fmt.Sprintf("%s/%s", "admin", owner))
 	if !organization.IsProfilePublic {
 		requestUserId := c.GetSessionUsername()
-		hasPermission, err := object.CheckUserPermission(requestUserId, id, false)
+		hasPermission, err := object.CheckUserPermission(requestUserId, id, owner, false, c.GetAcceptLanguage())
 		if !hasPermission {
 			c.ResponseError(err.Error())
 			return
@@ -100,11 +108,18 @@ func (c *ApiController) GetUser() {
 	}
 
 	var user *object.User
-	if email == "" {
-		user = object.GetUser(id)
-	} else {
+	switch {
+	case email != "":
 		user = object.GetUserByEmail(owner, email)
+	case phone != "":
+		user = object.GetUserByPhone(owner, phone)
+	case userId != "":
+		user = object.GetUserByUserId(owner, userId)
+	default:
+		user = object.GetUser(id)
 	}
+
+	object.ExtendUserWithRolesAndPermissions(user)
 
 	c.Data["json"] = object.GetMaskedUser(user)
 	c.ServeJSON()
@@ -129,11 +144,12 @@ func (c *ApiController) UpdateUser() {
 	var user object.User
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &user)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	if user.DisplayName == "" {
-		c.ResponseError("Display name cannot be empty")
+		c.ResponseError(c.T("UserErr.DisplayNameCanNotBeEmpty"))
 		return
 	}
 
@@ -163,7 +179,20 @@ func (c *ApiController) AddUser() {
 	var user object.User
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &user)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
+	}
+
+	count := object.GetUserCount("", "", "")
+	if err := checkQuotaForUser(count); err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	msg := object.CheckUsername(user.Name, c.GetAcceptLanguage())
+	if msg != "" {
+		c.ResponseError(msg)
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddUser(&user))
@@ -181,7 +210,8 @@ func (c *ApiController) DeleteUser() {
 	var user object.User
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &user)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteUser(&user))
@@ -200,12 +230,13 @@ func (c *ApiController) GetEmailAndPhone() {
 	var form RequestForm
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &form)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	user := object.GetUserByFields(form.Organization, form.Username)
 	if user == nil {
-		c.ResponseError(fmt.Sprintf("The user: %s/%s doesn't exist", form.Organization, form.Username))
+		c.ResponseError(fmt.Sprintf(c.T("UserErr.DoNotExistInOrg"), form.Organization, form.Username))
 		return
 	}
 
@@ -246,7 +277,7 @@ func (c *ApiController) SetPassword() {
 	requestUserId := c.GetSessionUsername()
 	userId := fmt.Sprintf("%s/%s", userOwner, userName)
 
-	hasPermission, err := object.CheckUserPermission(requestUserId, userId, true)
+	hasPermission, err := object.CheckUserPermission(requestUserId, userId, userOwner, true, c.GetAcceptLanguage())
 	if !hasPermission {
 		c.ResponseError(err.Error())
 		return
@@ -255,7 +286,7 @@ func (c *ApiController) SetPassword() {
 	targetUser := object.GetUser(userId)
 
 	if oldPassword != "" {
-		msg := object.CheckPassword(targetUser, oldPassword)
+		msg := object.CheckPassword(targetUser, oldPassword, c.GetAcceptLanguage())
 		if msg != "" {
 			c.ResponseError(msg)
 			return
@@ -263,12 +294,12 @@ func (c *ApiController) SetPassword() {
 	}
 
 	if strings.Contains(newPassword, " ") {
-		c.ResponseError("New password cannot contain blank space.")
+		c.ResponseError(c.T("SetPasswordErr.CanNotContainBlank"))
 		return
 	}
 
 	if len(newPassword) <= 5 {
-		c.ResponseError("New password must have at least 6 characters")
+		c.ResponseError(c.T("SetPasswordErr.LessThanSixCharacters"))
 		return
 	}
 
@@ -278,6 +309,7 @@ func (c *ApiController) SetPassword() {
 	c.ServeJSON()
 }
 
+// CheckUserPassword
 // @Title CheckUserPassword
 // @router /check-user-password [post]
 // @Tag User API
@@ -285,10 +317,11 @@ func (c *ApiController) CheckUserPassword() {
 	var user object.User
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &user)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
-	_, msg := object.CheckUserPassword(user.Owner, user.Name, user.Password)
+	_, msg := object.CheckUserPassword(user.Owner, user.Name, user.Password, c.GetAcceptLanguage())
 	if msg == "" {
 		c.ResponseOk()
 	} else {

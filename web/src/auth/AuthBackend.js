@@ -13,19 +13,26 @@
 // limitations under the License.
 
 import {authConfig} from "./Auth";
+import * as Setting from "../Setting";
 
 export function getAccount(query) {
   return fetch(`${authConfig.serverUrl}/api/get-account${query}`, {
-    method: 'GET',
-    credentials: 'include'
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function signup(values) {
   return fetch(`${authConfig.serverUrl}/api/signup`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
@@ -34,68 +41,102 @@ export function getEmailAndPhone(values) {
     method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then((res) => res.json());
 }
 
-function oAuthParamsToQuery(oAuthParams) {
+export function oAuthParamsToQuery(oAuthParams) {
   // login
   if (oAuthParams === null) {
     return "";
   }
 
   // code
-  return `?clientId=${oAuthParams.clientId}&responseType=${oAuthParams.responseType}&redirectUri=${oAuthParams.redirectUri}&scope=${oAuthParams.scope}&state=${oAuthParams.state}&nonce=${oAuthParams.nonce}&code_challenge_method=${oAuthParams.challengeMethod}&code_challenge=${oAuthParams.codeChallenge}`;
+  return `?clientId=${oAuthParams.clientId}&responseType=${oAuthParams.responseType}&redirectUri=${encodeURIComponent(oAuthParams.redirectUri)}&scope=${oAuthParams.scope}&state=${oAuthParams.state}&nonce=${oAuthParams.nonce}&code_challenge_method=${oAuthParams.challengeMethod}&code_challenge=${oAuthParams.codeChallenge}`;
 }
 
 export function getApplicationLogin(oAuthParams) {
   return fetch(`${authConfig.serverUrl}/api/get-app-login${oAuthParamsToQuery(oAuthParams)}`, {
-    method: 'GET',
-    credentials: 'include',
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function login(values, oAuthParams) {
   return fetch(`${authConfig.serverUrl}/api/login${oAuthParamsToQuery(oAuthParams)}`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function loginCas(values, params) {
   return fetch(`${authConfig.serverUrl}/api/login?service=${params.service}`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function logout() {
   return fetch(`${authConfig.serverUrl}/api/logout`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function unlink(values) {
   return fetch(`${authConfig.serverUrl}/api/unlink`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function getSamlLogin(providerId, relayState) {
   return fetch(`${authConfig.serverUrl}/api/get-saml-login?id=${providerId}&relayState=${relayState}`, {
-    method: 'GET',
-    credentials: 'include',
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }
 
 export function loginWithSaml(values, param) {
   return fetch(`${authConfig.serverUrl}/api/login${param}`, {
-    method: 'POST',
+    method: "POST",
     credentials: "include",
     body: JSON.stringify(values),
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+export function getWechatMessageEvent() {
+  return fetch(`${Setting.ServerUrl}/api/get-webhook-event`, {
+    method: "GET",
+    credentials: "include",
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
   }).then(res => res.json());
 }

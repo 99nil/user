@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/casdoor/casdoor/captcha"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -41,42 +42,70 @@ func (c *ApiController) getCurrentUser() *object.User {
 func (c *ApiController) SendVerificationCode() {
 	destType := c.Ctx.Request.Form.Get("type")
 	dest := c.Ctx.Request.Form.Get("dest")
-	orgId := c.Ctx.Request.Form.Get("organizationId")
 	checkType := c.Ctx.Request.Form.Get("checkType")
 	checkId := c.Ctx.Request.Form.Get("checkId")
 	checkKey := c.Ctx.Request.Form.Get("checkKey")
 	checkUser := c.Ctx.Request.Form.Get("checkUser")
+	applicationId := c.Ctx.Request.Form.Get("applicationId")
 	remoteAddr := util.GetIPFromRequest(c.Ctx.Request)
 
-	if len(destType) == 0 || len(dest) == 0 || len(orgId) == 0 || !strings.Contains(orgId, "/") || len(checkType) == 0 || len(checkId) == 0 || len(checkKey) == 0 {
-		c.ResponseError("Missing parameter.")
+	if destType == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": type.")
+		return
+	}
+	if dest == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": dest.")
+		return
+	}
+	if applicationId == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": applicationId.")
+		return
+	}
+	if !strings.Contains(applicationId, "/") {
+		c.ResponseError(c.T("ParameterErr.Wrong") + ": applicationId.")
+		return
+	}
+	if checkType == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": checkType.")
 		return
 	}
 
-	isHuman := false
-	captchaProvider := object.GetDefaultHumanCheckProvider()
-	if captchaProvider == nil {
-		isHuman = object.VerifyCaptcha(checkId, checkKey)
-	}
+	captchaProvider := captcha.GetCaptchaProvider(checkType)
 
-	if !isHuman {
-		c.ResponseError("Turing test failed.")
-		return
+	if captchaProvider != nil {
+		if checkKey == "" {
+			c.ResponseError(c.T("ParameterErr.Missing") + ": checkKey.")
+			return
+		}
+		isHuman, err := captchaProvider.VerifyCaptcha(checkKey, checkId)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+
+		if !isHuman {
+			c.ResponseError(c.T("AuthErr.NotHuman"))
+			return
+		}
 	}
 
 	user := c.getCurrentUser()
-	organization := object.GetOrganization(orgId)
-	application := object.GetApplicationByOrganizationName(organization.Name)
-
-	if checkUser == "true" && user == nil && object.GetUserByFields(organization.Name, dest) == nil {
-		c.ResponseError("Please login first")
+	application := object.GetApplication(applicationId)
+	organization := object.GetOrganization(fmt.Sprintf("%s/%s", application.Owner, application.Organization))
+	if organization == nil {
+		c.ResponseError(c.T("OrgErr.DoNotExist"))
 		return
 	}
 
-	sendResp := errors.New("Invalid dest type")
+	if checkUser == "true" && user == nil && object.GetUserByFields(organization.Name, dest) == nil {
+		c.ResponseError(c.T("LoginErr.LoginFirst"))
+		return
+	}
+
+	sendResp := errors.New("invalid dest type")
 
 	if user == nil && checkUser != "" && checkUser != "true" {
-		_, name := util.GetOwnerAndNameFromId(orgId)
+		name := application.Organization
 		user = object.GetUser(fmt.Sprintf("%s/%s", name, checkUser))
 	}
 	switch destType {
@@ -85,7 +114,13 @@ func (c *ApiController) SendVerificationCode() {
 			dest = user.Email
 		}
 		if !util.IsEmailValid(dest) {
-			c.ResponseError("Invalid Email address")
+			c.ResponseError(c.T("EmailErr.EmailInvalid"))
+			return
+		}
+
+		userByEmail := object.GetUserByEmail(organization.Name, dest)
+		if userByEmail == nil {
+			c.ResponseError(c.T("UserErr.DoNotExistSignUp"))
 			return
 		}
 
@@ -96,16 +131,17 @@ func (c *ApiController) SendVerificationCode() {
 			dest = user.Phone
 		}
 		if !util.IsPhoneCnValid(dest) {
-			c.ResponseError("Invalid phone number")
-			return
-		}
-		org := object.GetOrganization(orgId)
-		if org == nil {
-			c.ResponseError("Missing parameter.")
+			c.ResponseError(c.T("PhoneErr.NumberInvalid"))
 			return
 		}
 
-		dest = fmt.Sprintf("+%s%s", org.PhonePrefix, dest)
+		userByPhone := object.GetUserByPhone(organization.Name, dest)
+		if userByPhone == nil {
+			c.ResponseError(c.T("UserErr.DoNotExistSignUp"))
+			return
+		}
+
+		dest = fmt.Sprintf("+%s%s", organization.PhonePrefix, dest)
 		provider := application.GetSmsProvider()
 		sendResp = object.SendVerificationCodeToPhone(organization, user, provider, remoteAddr, dest)
 	}
@@ -124,14 +160,8 @@ func (c *ApiController) SendVerificationCode() {
 // @Title ResetEmailOrPhone
 // @router /api/reset-email-or-phone [post]
 func (c *ApiController) ResetEmailOrPhone() {
-	userId, ok := c.RequireSignedIn()
+	user, ok := c.RequireSignedInUser()
 	if !ok {
-		return
-	}
-
-	user := object.GetUser(userId)
-	if user == nil {
-		c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", userId))
 		return
 	}
 
@@ -139,20 +169,42 @@ func (c *ApiController) ResetEmailOrPhone() {
 	dest := c.Ctx.Request.Form.Get("dest")
 	code := c.Ctx.Request.Form.Get("code")
 	if len(dest) == 0 || len(code) == 0 || len(destType) == 0 {
-		c.ResponseError("Missing parameter.")
+		c.ResponseError(c.T("ParameterErr.Missing"))
 		return
 	}
 
 	checkDest := dest
+	org := object.GetOrganizationByUser(user)
 	if destType == "phone" {
-		org := object.GetOrganizationByUser(user)
+		phoneItem := object.GetAccountItemByName("Phone", org)
+		if phoneItem == nil {
+			c.ResponseError(c.T("PhoneErr.UnableGetModifyRule"))
+			return
+		}
+
+		if pass, errMsg := object.CheckAccountItemModifyRule(phoneItem, user, c.GetAcceptLanguage()); !pass {
+			c.ResponseError(errMsg)
+			return
+		}
+
 		phonePrefix := "86"
 		if org != nil && org.PhonePrefix != "" {
 			phonePrefix = org.PhonePrefix
 		}
 		checkDest = fmt.Sprintf("+%s%s", phonePrefix, dest)
+	} else if destType == "email" {
+		emailItem := object.GetAccountItemByName("Email", org)
+		if emailItem == nil {
+			c.ResponseError(c.T("EmailErr.UnableGetModifyRule"))
+			return
+		}
+
+		if pass, errMsg := object.CheckAccountItemModifyRule(emailItem, user, c.GetAcceptLanguage()); !pass {
+			c.ResponseError(errMsg)
+			return
+		}
 	}
-	if ret := object.CheckVerificationCode(checkDest, code); len(ret) != 0 {
+	if ret := object.CheckVerificationCode(checkDest, code, c.GetAcceptLanguage()); len(ret) != 0 {
 		c.ResponseError(ret)
 		return
 	}
@@ -165,11 +217,44 @@ func (c *ApiController) ResetEmailOrPhone() {
 		user.Phone = dest
 		object.SetUserField(user, "phone", user.Phone)
 	default:
-		c.ResponseError("Unknown type.")
+		c.ResponseError(c.T("ParameterErr.UnknownType"))
 		return
 	}
 
 	object.DisableVerificationCode(checkDest)
 	c.Data["json"] = Response{Status: "ok"}
 	c.ServeJSON()
+}
+
+// VerifyCaptcha ...
+// @Title VerifyCaptcha
+// @Tag Verification API
+// @router /verify-captcha [post]
+func (c *ApiController) VerifyCaptcha() {
+	captchaType := c.Ctx.Request.Form.Get("captchaType")
+
+	captchaToken := c.Ctx.Request.Form.Get("captchaToken")
+	clientSecret := c.Ctx.Request.Form.Get("clientSecret")
+	if captchaToken == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": captchaToken.")
+		return
+	}
+	if clientSecret == "" {
+		c.ResponseError(c.T("ParameterErr.Missing") + ": clientSecret.")
+		return
+	}
+
+	provider := captcha.GetCaptchaProvider(captchaType)
+	if provider == nil {
+		c.ResponseError(c.T("ProviderErr.InvalidProvider"))
+		return
+	}
+
+	isValid, err := provider.VerifyCaptcha(captchaToken, clientSecret)
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+
+	c.ResponseOk(isValid)
 }

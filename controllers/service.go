@@ -25,35 +25,63 @@ import (
 	"github.com/casdoor/casdoor/util"
 )
 
+type EmailForm struct {
+	Title     string   `json:"title"`
+	Content   string   `json:"content"`
+	Sender    string   `json:"sender"`
+	Receivers []string `json:"receivers"`
+	Provider  string   `json:"provider"`
+}
+
+type SmsForm struct {
+	Content   string   `json:"content"`
+	Receivers []string `json:"receivers"`
+	OrgId     string   `json:"organizationId"` // e.g. "admin/built-in"
+}
+
 // SendEmail
 // @Title SendEmail
 // @Tag Service API
 // @Description This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
 // @Param   clientId    query    string  true        "The clientId of the application"
 // @Param   clientSecret    query    string  true    "The clientSecret of the application"
-// @Param   body    body   emailForm    true         "Details of the email request"
+// @Param   from    body   controllers.EmailForm    true         "Details of the email request"
 // @Success 200 {object}  Response object
 // @router /api/send-email [post]
 func (c *ApiController) SendEmail() {
-	provider, _, ok := c.GetProviderFromContext("Email")
-	if !ok {
-		return
-	}
+	var emailForm EmailForm
 
-	var emailForm struct {
-		Title     string   `json:"title"`
-		Content   string   `json:"content"`
-		Sender    string   `json:"sender"`
-		Receivers []string `json:"receivers"`
-	}
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &emailForm)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
 
+	var provider *object.Provider
+	if emailForm.Provider != "" {
+		// called by frontend's TestEmailWidget, provider name is set by frontend
+		provider = object.GetProvider(util.GetId("admin", emailForm.Provider))
+	} else {
+		// called by Casdoor SDK via Client ID & Client Secret, so the used Email provider will be the application' Email provider or the default Email provider
+		var ok bool
+		provider, _, ok = c.GetProviderFromContext("Email")
+		if !ok {
+			return
+		}
+	}
+
+	// when receiver is the reserved keyword: "TestSmtpServer", it means to test the SMTP server instead of sending a real Email
+	if len(emailForm.Receivers) == 1 && emailForm.Receivers[0] == "TestSmtpServer" {
+		err := object.DailSmtpServer(provider)
+		if err != nil {
+			c.ResponseError(err.Error())
+			return
+		}
+		c.ResponseOk()
+	}
+
 	if util.IsStrsEmpty(emailForm.Title, emailForm.Content, emailForm.Sender) {
-		c.ResponseError(fmt.Sprintf("Empty parameters for emailForm: %v", emailForm))
+		c.ResponseError(fmt.Sprintf(c.T("EmailErr.EmptyParam"), emailForm))
 		return
 	}
 
@@ -65,7 +93,7 @@ func (c *ApiController) SendEmail() {
 	}
 
 	if len(invalidReceivers) != 0 {
-		c.ResponseError(fmt.Sprintf("Invalid Email receivers: %s", invalidReceivers))
+		c.ResponseError(fmt.Sprintf(c.T("EmailErr.InvalidReceivers"), invalidReceivers))
 		return
 	}
 
@@ -86,7 +114,7 @@ func (c *ApiController) SendEmail() {
 // @Description This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
 // @Param   clientId    query    string  true        "The clientId of the application"
 // @Param   clientSecret    query    string  true    "The clientSecret of the application"
-// @Param   body    body   smsForm    true           "Details of the sms request"
+// @Param   from    body   controllers.SmsForm    true           "Details of the sms request"
 // @Success 200 {object}  Response object
 // @router /api/send-sms [post]
 func (c *ApiController) SendSms() {
@@ -95,11 +123,7 @@ func (c *ApiController) SendSms() {
 		return
 	}
 
-	var smsForm struct {
-		Content   string   `json:"content"`
-		Receivers []string `json:"receivers"`
-		OrgId     string   `json:"organizationId"` // e.g. "admin/built-in"
-	}
+	var smsForm SmsForm
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &smsForm)
 	if err != nil {
 		c.ResponseError(err.Error())
@@ -117,7 +141,7 @@ func (c *ApiController) SendSms() {
 	}
 
 	if len(invalidReceivers) != 0 {
-		c.ResponseError(fmt.Sprintf("Invalid phone receivers: %s", invalidReceivers))
+		c.ResponseError(fmt.Sprintf(c.T("PhoneErr.InvalidReceivers"), invalidReceivers))
 		return
 	}
 

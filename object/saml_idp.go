@@ -28,15 +28,15 @@ import (
 	"time"
 
 	"github.com/RobotsAndPencils/go-saml"
-	"github.com/astaxie/beego"
 	"github.com/beevik/etree"
 	"github.com/golang-jwt/jwt/v4"
 	dsig "github.com/russellhaering/goxmldsig"
 	uuid "github.com/satori/go.uuid"
 )
 
-//returns a saml2 response
-func NewSamlResponse(user *User, host string, publicKey string, destination string, iss string, redirectUri []string) (*etree.Element, error) {
+// NewSamlResponse
+// returns a saml2 response
+func NewSamlResponse(user *User, host string, certificate string, destination string, iss string, requestId string, redirectUri []string) (*etree.Element, error) {
 	samlResponse := &etree.Element{
 		Space: "samlp",
 		Tag:   "Response",
@@ -51,7 +51,7 @@ func NewSamlResponse(user *User, host string, publicKey string, destination stri
 	samlResponse.CreateAttr("Version", "2.0")
 	samlResponse.CreateAttr("IssueInstant", now)
 	samlResponse.CreateAttr("Destination", destination)
-	samlResponse.CreateAttr("InResponseTo", fmt.Sprintf("Casdoor_%s", arId))
+	samlResponse.CreateAttr("InResponseTo", requestId)
 	samlResponse.CreateElement("saml:Issuer").SetText(host)
 
 	samlResponse.CreateElement("samlp:Status").CreateElement("samlp:StatusCode").CreateAttr("Value", "urn:oasis:names:tc:SAML:2.0:status:Success")
@@ -68,7 +68,7 @@ func NewSamlResponse(user *User, host string, publicKey string, destination stri
 	subjectConfirmation := subject.CreateElement("saml:SubjectConfirmation")
 	subjectConfirmation.CreateAttr("Method", "urn:oasis:names:tc:SAML:2.0:cm:bearer")
 	subjectConfirmationData := subjectConfirmation.CreateElement("saml:SubjectConfirmationData")
-	subjectConfirmationData.CreateAttr("InResponseTo", fmt.Sprintf("_%s", arId))
+	subjectConfirmationData.CreateAttr("InResponseTo", requestId)
 	subjectConfirmationData.CreateAttr("Recipient", destination)
 	subjectConfirmationData.CreateAttr("NotOnOrAfter", expireTime)
 	condition := assertion.CreateElement("saml:Conditions")
@@ -100,7 +100,6 @@ func NewSamlResponse(user *User, host string, publicKey string, destination stri
 	displayName.CreateElement("saml:AttributeValue").CreateAttr("xsi:type", "xs:string").Element().SetText(user.DisplayName)
 
 	return samlResponse, nil
-
 }
 
 type X509Key struct {
@@ -114,7 +113,8 @@ func (x X509Key) GetKeyPair() (privateKey *rsa.PrivateKey, cert []byte, err erro
 	return privateKey, cert, err
 }
 
-//SAML METADATA
+// IdpEntityDescriptor
+// SAML METADATA
 type IdpEntityDescriptor struct {
 	XMLName  xml.Name `xml:"EntityDescriptor"`
 	DS       string   `xml:"xmlns:ds,attr"`
@@ -175,16 +175,12 @@ type Attribute struct {
 }
 
 func GetSamlMeta(application *Application, host string) (*IdpEntityDescriptor, error) {
-	//_, originBackend := getOriginFromHost(host)
 	cert := getCertByApplication(application)
-	block, _ := pem.Decode([]byte(cert.PublicKey))
-	publicKey := base64.StdEncoding.EncodeToString(block.Bytes)
+	block, _ := pem.Decode([]byte(cert.Certificate))
+	certificate := base64.StdEncoding.EncodeToString(block.Bytes)
 
-	origin := beego.AppConfig.String("origin")
 	originFrontend, originBackend := getOriginFromHost(host)
-	if origin != "" {
-		originBackend = origin
-	}
+
 	d := IdpEntityDescriptor{
 		XMLName: xml.Name{
 			Local: "md:EntityDescriptor",
@@ -199,7 +195,7 @@ func GetSamlMeta(application *Application, host string) (*IdpEntityDescriptor, e
 				KeyInfo: KeyInfo{
 					X509Data: X509Data{
 						X509Certificate: X509Certificate{
-							Cert: publicKey,
+							Cert: certificate,
 						},
 					},
 				},
@@ -225,14 +221,15 @@ func GetSamlMeta(application *Application, host string) (*IdpEntityDescriptor, e
 	return &d, nil
 }
 
-//GenerateSamlResponse generates a SAML2.0 response
-//parameter samlRequest is saml request in base64 format
+// GetSamlResponse generates a SAML2.0 response
+// parameter samlRequest is saml request in base64 format
 func GetSamlResponse(application *Application, user *User, samlRequest string, host string) (string, string, error) {
-	//decode samlRequest
+	// base64 decode
 	defated, err := base64.StdEncoding.DecodeString(samlRequest)
 	if err != nil {
 		return "", "", fmt.Errorf("err: %s", err.Error())
 	}
+	// decompress
 	var buffer bytes.Buffer
 	rdr := flate.NewReader(bytes.NewReader(defated))
 	io.Copy(&buffer, rdr)
@@ -241,48 +238,64 @@ func GetSamlResponse(application *Application, user *User, samlRequest string, h
 	if err != nil {
 		return "", "", fmt.Errorf("err: %s", err.Error())
 	}
-	//verify samlRequest
+
+	// verify samlRequest
 	if valid := CheckRedirectUriValid(application, authnRequest.Issuer.Url); !valid {
 		return "", "", fmt.Errorf("err: invalid issuer url")
 	}
 
-	//get publickey string
+	// get certificate string
 	cert := getCertByApplication(application)
-	block, _ := pem.Decode([]byte(cert.PublicKey))
-	publicKey := base64.StdEncoding.EncodeToString(block.Bytes)
+	block, _ := pem.Decode([]byte(cert.Certificate))
+	certificate := base64.StdEncoding.EncodeToString(block.Bytes)
 
 	_, originBackend := getOriginFromHost(host)
 
-	//build signedResponse
-	samlResponse, _ := NewSamlResponse(user, originBackend, publicKey, authnRequest.AssertionConsumerServiceURL, authnRequest.Issuer.Url, application.RedirectUris)
+	// build signedResponse
+	samlResponse, _ := NewSamlResponse(user, originBackend, certificate, authnRequest.AssertionConsumerServiceURL, authnRequest.Issuer.Url, authnRequest.ID, application.RedirectUris)
 	randomKeyStore := &X509Key{
 		PrivateKey:      cert.PrivateKey,
-		X509Certificate: publicKey,
+		X509Certificate: certificate,
 	}
 	ctx := dsig.NewDefaultSigningContext(randomKeyStore)
 	ctx.Hash = crypto.SHA1
-	signedXML, err := ctx.SignEnveloped(samlResponse)
+	//signedXML, err := ctx.SignEnvelopedLimix(samlResponse)
+	//if err != nil {
+	//	return "", "", fmt.Errorf("err: %s", err.Error())
+	//}
+	sig, err := ctx.ConstructSignature(samlResponse, true)
+	samlResponse.InsertChildAt(1, sig)
+
+	doc := etree.NewDocument()
+	doc.SetRoot(samlResponse)
+	xmlBytes, err := doc.WriteToBytes()
 	if err != nil {
 		return "", "", fmt.Errorf("err: %s", err.Error())
 	}
 
-	doc := etree.NewDocument()
-	doc.SetRoot(signedXML)
-	xmlStr, err := doc.WriteToString()
-	if err != nil {
-		return "", "", fmt.Errorf("err: %s", err.Error())
+	// compress
+	if application.EnableSamlCompress {
+		flated := bytes.NewBuffer(nil)
+		writer, err := flate.NewWriter(flated, flate.DefaultCompression)
+		if err != nil {
+			return "", "", fmt.Errorf("err: %s", err.Error())
+		}
+		writer.Write(xmlBytes)
+		writer.Close()
+		xmlBytes = flated.Bytes()
 	}
-	res := base64.StdEncoding.EncodeToString([]byte(xmlStr))
+	// base64 encode
+	res := base64.StdEncoding.EncodeToString(xmlBytes)
 	return res, authnRequest.AssertionConsumerServiceURL, nil
 }
 
-//return a saml1.1 response(not 2.0)
+// NewSamlResponse11 return a saml1.1 response(not 2.0)
 func NewSamlResponse11(user *User, requestID string, host string) *etree.Element {
 	samlResponse := &etree.Element{
 		Space: "samlp",
 		Tag:   "Response",
 	}
-	//create samlresponse
+	// create samlresponse
 	samlResponse.CreateAttr("xmlns:samlp", "urn:oasis:names:tc:SAML:1.0:protocol")
 	samlResponse.CreateAttr("MajorVersion", "1")
 	samlResponse.CreateAttr("MinorVersion", "1")
@@ -298,7 +311,7 @@ func NewSamlResponse11(user *User, requestID string, host string) *etree.Element
 
 	samlResponse.CreateElement("samlp:Status").CreateElement("samlp:StatusCode").CreateAttr("Value", "samlp:Success")
 
-	//create assertion which is inside the response
+	// create assertion which is inside the response
 	assertion := samlResponse.CreateElement("saml:Assertion")
 	assertion.CreateAttr("xmlns:saml", "urn:oasis:names:tc:SAML:1.0:assertion")
 	assertion.CreateAttr("MajorVersion", "1")
@@ -311,19 +324,19 @@ func NewSamlResponse11(user *User, requestID string, host string) *etree.Element
 	condition.CreateAttr("NotBefore", now)
 	condition.CreateAttr("NotOnOrAfter", expireTime)
 
-	//AuthenticationStatement inside assertion
+	// AuthenticationStatement inside assertion
 	authenticationStatement := assertion.CreateElement("saml:AuthenticationStatement")
 	authenticationStatement.CreateAttr("AuthenticationMethod", "urn:oasis:names:tc:SAML:1.0:am:password")
 	authenticationStatement.CreateAttr("AuthenticationInstant", now)
 
-	//subject inside AuthenticationStatement
+	// subject inside AuthenticationStatement
 	subject := assertion.CreateElement("saml:Subject")
-	//nameIdentifier inside subject
+	// nameIdentifier inside subject
 	nameIdentifier := subject.CreateElement("saml:NameIdentifier")
-	//nameIdentifier.CreateAttr("Format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress")
+	// nameIdentifier.CreateAttr("Format", "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress")
 	nameIdentifier.SetText(user.Name)
 
-	//subjectConfirmation inside subject
+	// subjectConfirmation inside subject
 	subjectConfirmation := subject.CreateElement("saml:SubjectConfirmation")
 	subjectConfirmation.CreateElement("saml:ConfirmationMethod").SetText("urn:oasis:names:tc:SAML:1.0:cm:artifact")
 

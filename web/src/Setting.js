@@ -12,19 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-import {message, Tag, Tooltip} from "antd";
-import {QuestionCircleTwoTone} from "@ant-design/icons";
 import React from "react";
+import {Link} from "react-router-dom";
+import {Tag, Tooltip, message} from "antd";
+import {QuestionCircleTwoTone} from "@ant-design/icons";
 import {isMobile as isMobileDevice} from "react-device-detect";
 import "./i18n";
 import i18next from "i18next";
 import copy from "copy-to-clipboard";
 import {authConfig} from "./auth/Auth";
 import {Helmet} from "react-helmet";
-import moment from "moment";
 import * as Conf from "./Conf";
+import * as path from "path-browserify";
 
-export let ServerUrl = "";
+export const ServerUrl = "";
 
 // export const StaticBaseUrl = "https://cdn.jsdelivr.net/gh/casbin/static";
 export const StaticBaseUrl = "https://cdn.casbin.org";
@@ -50,6 +51,18 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_huawei.png`,
       url: "https://www.huaweicloud.com/product/msgsms.html",
     },
+    "Twilio SMS": {
+      logo: `${StaticBaseUrl}/img/social_twilio.png`,
+      url: "https://www.twilio.com/messaging",
+    },
+    "SmsBao SMS": {
+      logo: `${StaticBaseUrl}/img/social_smsbao.png`,
+      url: "https://www.smsbao.com/",
+    },
+    "Mock SMS": {
+      logo: `${StaticBaseUrl}/img/social_default.png`,
+      url: "",
+    },
   },
   Email: {
     "Default": {
@@ -66,6 +79,10 @@ export const OtherProviderInfo = {
       logo: `${StaticBaseUrl}/img/social_aws.png`,
       url: "https://aws.amazon.com/s3",
     },
+    "MinIO": {
+      logo: "https://min.io/resources/img/logo.svg",
+      url: "https://min.io/",
+    },
     "Aliyun OSS": {
       logo: `${StaticBaseUrl}/img/social_aliyun.png`,
       url: "https://aliyun.com/product/oss",
@@ -75,36 +92,62 @@ export const OtherProviderInfo = {
       url: "https://cloud.tencent.com/product/cos",
     },
     "Azure Blob": {
-      logo: `${StaticBaseUrl}/img/social_azure.jpg`,
-      url: "https://azure.microsoft.com/en-us/services/storage/blobs/"
-    }
+      logo: `${StaticBaseUrl}/img/social_azure.png`,
+      url: "https://azure.microsoft.com/en-us/services/storage/blobs/",
+    },
   },
   SAML: {
     "Aliyun IDaaS": {
       logo: `${StaticBaseUrl}/img/social_aliyun.png`,
-      url: "https://aliyun.com/product/idaas"
+      url: "https://aliyun.com/product/idaas",
     },
     "Keycloak": {
       logo: `${StaticBaseUrl}/img/social_keycloak.png`,
-      url: "https://www.keycloak.org/"
+      url: "https://www.keycloak.org/",
     },
   },
   Payment: {
     "Alipay": {
       logo: `${StaticBaseUrl}/img/payment_alipay.png`,
-      url: "https://www.alipay.com/"
+      url: "https://www.alipay.com/",
     },
     "WeChat Pay": {
       logo: `${StaticBaseUrl}/img/payment_wechat_pay.png`,
-      url: "https://pay.weixin.qq.com/"
+      url: "https://pay.weixin.qq.com/",
     },
     "PayPal": {
       logo: `${StaticBaseUrl}/img/payment_paypal.png`,
-      url: "https://www.paypal.com/"
+      url: "https://www.paypal.com/",
     },
     "GC": {
       logo: `${StaticBaseUrl}/img/payment_gc.png`,
-      url: "https://gc.org"
+      url: "https://gc.org",
+    },
+  },
+  Captcha: {
+    "Default": {
+      logo: `${StaticBaseUrl}/img/social_default.png`,
+      url: "https://pkg.go.dev/github.com/dchest/captcha",
+    },
+    "reCAPTCHA": {
+      logo: `${StaticBaseUrl}/img/social_recaptcha.png`,
+      url: "https://www.google.com/recaptcha",
+    },
+    "hCaptcha": {
+      logo: `${StaticBaseUrl}/img/social_hcaptcha.png`,
+      url: "https://www.hcaptcha.com",
+    },
+    "Aliyun Captcha": {
+      logo: `${StaticBaseUrl}/img/social_aliyun.png`,
+      url: "https://help.aliyun.com/product/28308.html",
+    },
+    "GEETEST": {
+      logo: `${StaticBaseUrl}/img/social_geetest.png`,
+      url: "https://www.geetest.com",
+    },
+    "Cloudflare Turnstile": {
+      logo: `${StaticBaseUrl}/img/social_cloudflare.png`,
+      url: "https://www.cloudflare.com/products/turnstile/",
     },
   },
 };
@@ -115,17 +158,16 @@ export function getCountryRegionData() {
     language = Conf.DefaultLanguage;
   }
 
-  var countries = require("i18n-iso-countries");
+  const countries = require("i18n-iso-countries");
   countries.registerLocale(require("i18n-iso-countries/langs/" + language + ".json"));
-  var data = countries.getNames(language, {select: "official"});
-  var result = []
-  for (var i in data) 
-    result.push({code:i, name:data[i]})
-  return result
+  const data = countries.getNames(language, {select: "official"});
+  const result = [];
+  for (const i in data) {result.push({code: i, name: data[i]});}
+  return result;
 }
 
 export function initServerUrl() {
-  //const hostname = window.location.hostname;
+  // const hostname = window.location.hostname;
   // if (hostname === "localhost") {
   //   ServerUrl = `http://${hostname}:8000`;
   // }
@@ -153,8 +195,8 @@ export function isProviderVisible(providerItem) {
     return false;
   }
 
-  if (providerItem.provider.type === "WeChatMiniProgram"){
-    return false
+  if (providerItem.provider.type === "WeChatMiniProgram") {
+    return false;
   }
 
   return true;
@@ -180,8 +222,16 @@ export function isProviderPrompted(providerItem) {
   return isProviderVisible(providerItem) && providerItem.prompted;
 }
 
+export function isSignupItemPrompted(signupItem) {
+  return signupItem.visible && signupItem.prompted;
+}
+
 export function getAllPromptedProviderItems(application) {
   return application.providers.filter(providerItem => isProviderPrompted(providerItem));
+}
+
+export function getAllPromptedSignupItems(application) {
+  return application.signupItems.filter(signupItem => isSignupItemPrompted(signupItem));
 }
 
 export function getSignupItem(application, itemName) {
@@ -193,9 +243,11 @@ export function getSignupItem(application, itemName) {
 }
 
 export function isValidPersonName(personName) {
-  // https://blog.css8.cn/post/14210975.html
-  const personNameRegex = /^[\u4e00-\u9fa5]{2,6}$/;
-  return personNameRegex.test(personName);
+  return personName !== "";
+
+  // // https://blog.css8.cn/post/14210975.html
+  // const personNameRegex = /^[\u4e00-\u9fa5]{2,6}$/;
+  // return personNameRegex.test(personName);
 }
 
 export function isValidIdCard(idCard) {
@@ -225,7 +277,7 @@ export function isValidInvoiceTitle(invoiceTitle) {
   }
 
   // https://blog.css8.cn/post/14210975.html
-  const invoiceTitleRegex = /^[\(\)\（\）\u4e00-\u9fa5]{0,50}$/;
+  const invoiceTitleRegex = /^[()（）\u4e00-\u9fa5]{0,50}$/;
   return invoiceTitleRegex.test(invoiceTitle);
 }
 
@@ -255,6 +307,11 @@ export function hasPromptPage(application) {
     return true;
   }
 
+  const signupItems = getAllPromptedSignupItems(application);
+  if (signupItems.length !== 0) {
+    return true;
+  }
+
   return isAffiliationPrompted(application);
 }
 
@@ -279,18 +336,46 @@ function isProviderItemAnswered(user, application, providerItem) {
   return linkedValue !== undefined && linkedValue !== "";
 }
 
+function isSignupItemAnswered(user, signupItem) {
+  if (user === null) {
+    return false;
+  }
+
+  if (signupItem.name !== "Country/Region") {
+    return true;
+  }
+
+  const value = user["region"];
+  return value !== undefined && value !== "";
+}
+
 export function isPromptAnswered(user, application) {
   if (!isAffiliationAnswered(user, application)) {
     return false;
   }
 
   const providerItems = getAllPromptedProviderItems(application);
-  for (let i = 0; i < providerItems.length; i ++) {
+  for (let i = 0; i < providerItems.length; i++) {
     if (!isProviderItemAnswered(user, application, providerItems[i])) {
       return false;
     }
   }
+
+  const signupItems = getAllPromptedSignupItems(application);
+  for (let i = 0; i < signupItems.length; i++) {
+    if (!isSignupItemAnswered(user, signupItems[i])) {
+      return false;
+    }
+  }
   return true;
+}
+
+export function parseObject(s) {
+  try {
+    return eval("(" + s + ")");
+  } catch (e) {
+    return null;
+  }
 }
 
 export function parseJson(s) {
@@ -308,16 +393,16 @@ export function myParseInt(i) {
 
 export function openLink(link) {
   // this.props.history.push(link);
-  const w = window.open('about:blank');
+  const w = window.open("about:blank");
   w.location.href = link;
 }
 
 export function openLinkSafe(link) {
   // Javascript window.open issue in safari
   // https://stackoverflow.com/questions/45569893/javascript-window-open-issue-in-safari
-  let a = document.createElement('a');
+  const a = document.createElement("a");
   a.href = link;
-  a.setAttribute('target', '_blank');
+  a.setAttribute("target", "_blank");
   a.click();
 }
 
@@ -335,9 +420,7 @@ export function goToLinkSoft(ths, link) {
 }
 
 export function showMessage(type, text) {
-  if (type === "") {
-    return;
-  } else if (type === "success") {
+  if (type === "success") {
     message.success(text);
   } else if (type === "error") {
     message.error(text);
@@ -353,12 +436,19 @@ export function isAdminUser(account) {
   return account.owner === "built-in" || account.isGlobalAdmin === true;
 }
 
+export function isLocalAdminUser(account) {
+  if (account === undefined || account === null) {
+    return false;
+  }
+  return account.isAdmin === true || isAdminUser(account);
+}
+
 export function deepCopy(obj) {
   return Object.assign({}, obj);
 }
 
-export function addRow(array, row) {
-  return [...array, row];
+export function addRow(array, row, position = "end") {
+  return position === "end" ? [...array, row] : [row, ...array];
 }
 
 export function prependRow(array, row) {
@@ -382,11 +472,9 @@ export function trim(str, ch) {
   let start = 0;
   let end = str.length;
 
-  while(start < end && str[start] === ch)
-    ++start;
+  while (start < end && str[start] === ch) {++start;}
 
-  while(end > start && str[end - 1] === ch)
-    --end;
+  while (end > start && str[end - 1] === ch) {--end;}
 
   return (start > 0 || end < str.length) ? str.substring(start, end) : str;
 }
@@ -401,8 +489,8 @@ export function getFormattedDate(date) {
     return null;
   }
 
-  date = date.replace('T', ' ');
-  date = date.replace('+08:00', ' ');
+  date = date.replace("T", " ");
+  date = date.replace("+08:00", " ");
   return date;
 }
 
@@ -411,10 +499,10 @@ export function getFormattedDateShort(date) {
 }
 
 export function getShortName(s) {
-  return s.split('/').slice(-1)[0];
+  return s.split("/").slice(-1)[0];
 }
 
-export function getShortText(s, maxLength=35) {
+export function getShortText(s, maxLength = 35) {
   if (s.length > maxLength) {
     return `${s.slice(0, maxLength)}...`;
   } else {
@@ -424,36 +512,36 @@ export function getShortText(s, maxLength=35) {
 
 export function getFriendlyFileSize(size) {
   if (size < 1024) {
-    return size + ' B';
+    return size + " B";
   }
 
-  let i = Math.floor(Math.log(size) / Math.log(1024));
+  const i = Math.floor(Math.log(size) / Math.log(1024));
   let num = (size / Math.pow(1024, i));
-  let round = Math.round(num);
+  const round = Math.round(num);
   num = round < 10 ? num.toFixed(2) : round < 100 ? num.toFixed(1) : round;
-  return `${num} ${'KMGTPEZY'[i-1]}B`;
+  return `${num} ${"KMGTPEZY"[i - 1]}B`;
 }
 
-function getRandomInt(s) {
+function getHashInt(s) {
   let hash = 0;
   if (s.length !== 0) {
-    for (let i = 0; i < s.length; i ++) {
-      let char = s.charCodeAt(i);
+    for (let i = 0; i < s.length; i++) {
+      const char = s.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
       hash = hash & hash;
     }
   }
 
+  if (hash < 0) {
+    hash = -hash;
+  }
   return hash;
 }
 
 export function getAvatarColor(s) {
-  const colorList = ['#f56a00', '#7265e6', '#ffbf00', '#00a2ae'];
-  let random = getRandomInt(s);
-  if (random < 0) {
-    random = -random;
-  }
-  return colorList[random % 4];
+  const colorList = ["#f56a00", "#7265e6", "#ffbf00", "#00a2ae"];
+  const hash = getHashInt(s);
+  return colorList[hash % 4];
 }
 
 export function getLanguage() {
@@ -466,134 +554,152 @@ export function setLanguage(language) {
   i18next.changeLanguage(language);
 }
 
-export function changeLanguage(language) {
-  localStorage.setItem("language", language);
-  changeMomentLanguage(language);
-  i18next.changeLanguage(language);
-  window.location.reload(true);
+export function getAcceptLanguage() {
+  if (i18next.language === null || i18next.language === "") {
+    return "en;q=0.9,en;q=0.8";
+  }
+  return i18next.language + ";q=0.9,en;q=0.8";
 }
 
 export function changeMomentLanguage(language) {
-  return;
-  if (language === "zh") {
-    moment.locale("zh", {
-      relativeTime: {
-        future: "%s内",
-        past: "%s前",
-        s: "几秒",
-        ss: "%d秒",
-        m: "1分钟",
-        mm: "%d分钟",
-        h: "1小时",
-        hh: "%d小时",
-        d: "1天",
-        dd: "%d天",
-        M: "1个月",
-        MM: "%d个月",
-        y: "1年",
-        yy: "%d年",
-      },
-    });
-  }
+  // if (language === "zh") {
+  //   moment.locale("zh", {
+  //     relativeTime: {
+  //       future: "%s内",
+  //       past: "%s前",
+  //       s: "几秒",
+  //       ss: "%d秒",
+  //       m: "1分钟",
+  //       mm: "%d分钟",
+  //       h: "1小时",
+  //       hh: "%d小时",
+  //       d: "1天",
+  //       dd: "%d天",
+  //       M: "1个月",
+  //       MM: "%d个月",
+  //       y: "1年",
+  //       yy: "%d年",
+  //     },
+  //   });
+  // }
 }
 
 export function getClickable(text) {
   return (
-    // eslint-disable-next-line jsx-a11y/anchor-is-valid
     <a onClick={() => {
       copy(text);
-      showMessage("success", `Copied to clipboard`);
+      showMessage("success", "Copied to clipboard");
     }}>
       {text}
     </a>
-  )
+  );
 }
 
 export function getProviderLogoURL(provider) {
   if (provider.category === "OAuth") {
     if (provider.type === "Custom") {
-      return provider.customLogo;  
+      return provider.customLogo;
     }
     return `${StaticBaseUrl}/img/social_${provider.type.toLowerCase()}.png`;
   } else {
-    return OtherProviderInfo[provider.category][provider.type].logo;
+    const info = OtherProviderInfo[provider.category][provider.type];
+    // avoid crash when provider is not found
+    if (info) {
+      return info.logo;
+    }
+    return "";
   }
 }
 
 export function getProviderLogo(provider) {
-  const idp = provider.type.toLowerCase().trim().split(' ')[0];
+  const idp = provider.type.toLowerCase().trim().split(" ")[0];
   const url = getProviderLogoURL(provider);
   return (
     <img width={30} height={30} src={url} alt={idp} />
-  )
+  );
 }
 
 export function getProviderTypeOptions(category) {
   if (category === "OAuth") {
     return (
       [
-        {id: 'Google', name: 'Google'},
-        {id: 'GitHub', name: 'GitHub'},
-        {id: 'QQ', name: 'QQ'},
-        {id: 'WeChat', name: 'WeChat'},
-        {id: 'WeChatMiniProgram', name: 'WeChat Mini Program'},
-        {id: 'Facebook', name: 'Facebook'},
-        {id: 'DingTalk', name: 'DingTalk'},
-        {id: 'Weibo', name: 'Weibo'},
-        {id: 'Gitee', name: 'Gitee'},
-        {id: 'LinkedIn', name: 'LinkedIn'},
-        {id: 'WeCom', name: 'WeCom'},
-        {id: 'Lark', name: 'Lark'},
-        {id: 'GitLab', name: 'GitLab'},
-        {id: 'Adfs', name: 'Adfs'},
-        {id: 'Baidu', name: 'Baidu'},
-        {id: 'Alipay', name: 'Alipay'},
-        {id: 'Casdoor', name: 'Casdoor'},
-        {id: 'Infoflow', name: 'Infoflow'},
-        {id: 'Apple', name: 'Apple'},
-        {id: 'AzureAD', name: 'AzureAD'},
-        {id: 'Slack', name: 'Slack'},
-        {id: 'Steam', name: 'Steam'},
-        {id: 'Okta', name: 'Okta'},
-        {id: 'Custom', name: 'Custom'},
+        {id: "Google", name: "Google"},
+        {id: "GitHub", name: "GitHub"},
+        {id: "QQ", name: "QQ"},
+        {id: "WeChat", name: "WeChat"},
+        {id: "WeChatMiniProgram", name: "WeChat Mini Program"},
+        {id: "Facebook", name: "Facebook"},
+        {id: "DingTalk", name: "DingTalk"},
+        {id: "Weibo", name: "Weibo"},
+        {id: "Gitee", name: "Gitee"},
+        {id: "LinkedIn", name: "LinkedIn"},
+        {id: "WeCom", name: "WeCom"},
+        {id: "Lark", name: "Lark"},
+        {id: "GitLab", name: "GitLab"},
+        {id: "Adfs", name: "Adfs"},
+        {id: "Baidu", name: "Baidu"},
+        {id: "Alipay", name: "Alipay"},
+        {id: "Casdoor", name: "Casdoor"},
+        {id: "Infoflow", name: "Infoflow"},
+        {id: "Apple", name: "Apple"},
+        {id: "AzureAD", name: "AzureAD"},
+        {id: "Slack", name: "Slack"},
+        {id: "Steam", name: "Steam"},
+        {id: "Bilibili", name: "Bilibili"},
+        {id: "Okta", name: "Okta"},
+        {id: "Douyin", name: "Douyin"},
+        {id: "Custom", name: "Custom"},
       ]
     );
   } else if (category === "Email") {
     return (
       [
-        {id: 'Default', name: 'Default'},
+        {id: "Default", name: "Default"},
+        {id: "SUBMAIL", name: "SUBMAIL"},
       ]
     );
   } else if (category === "SMS") {
     return (
       [
-        {id: 'Aliyun SMS', name: 'Aliyun SMS'},
-        {id: 'Tencent Cloud SMS', name: 'Tencent Cloud SMS'},
-        {id: 'Volc Engine SMS', name: 'Volc Engine SMS'},
-        {id: 'Huawei Cloud SMS', name: 'Huawei Cloud SMS'},
+        {id: "Aliyun SMS", name: "Aliyun SMS"},
+        {id: "Tencent Cloud SMS", name: "Tencent Cloud SMS"},
+        {id: "Volc Engine SMS", name: "Volc Engine SMS"},
+        {id: "Huawei Cloud SMS", name: "Huawei Cloud SMS"},
+        {id: "Twilio SMS", name: "Twilio SMS"},
+        {id: "SmsBao SMS", name: "SmsBao SMS"},
       ]
     );
   } else if (category === "Storage") {
     return (
       [
-        {id: 'Local File System', name: 'Local File System'},
-        {id: 'AWS S3', name: 'AWS S3'},
-        {id: 'Aliyun OSS', name: 'Aliyun OSS'},
-        {id: 'Tencent Cloud COS', name: 'Tencent Cloud COS'},
-        {id: 'Azure Blob', name: 'Azure Blob'}
+        {id: "Local File System", name: "Local File System"},
+        {id: "AWS S3", name: "AWS S3"},
+        {id: "MinIO", name: "MinIO"},
+        {id: "Aliyun OSS", name: "Aliyun OSS"},
+        {id: "Tencent Cloud COS", name: "Tencent Cloud COS"},
+        {id: "Azure Blob", name: "Azure Blob"},
       ]
     );
   } else if (category === "SAML") {
     return ([
-      {id: 'Aliyun IDaaS', name: 'Aliyun IDaaS'},
-      {id: 'Keycloak', name: 'Keycloak'},
+      {id: "Aliyun IDaaS", name: "Aliyun IDaaS"},
+      {id: "Keycloak", name: "Keycloak"},
     ]);
   } else if (category === "Payment") {
     return ([
-      {id: 'Alipay', name: 'Alipay'},
-      {id: 'WeChat Pay', name: 'WeChat Pay'},
-      {id: 'PayPal', name: 'PayPal'},
-      {id: 'GC', name: 'GC'},
+      {id: "Alipay", name: "Alipay"},
+      {id: "WeChat Pay", name: "WeChat Pay"},
+      {id: "PayPal", name: "PayPal"},
+      {id: "GC", name: "GC"},
+    ]);
+  } else if (category === "Captcha") {
+    return ([
+      {id: "Default", name: "Default"},
+      {id: "reCAPTCHA", name: "reCAPTCHA"},
+      {id: "hCaptcha", name: "hCaptcha"},
+      {id: "Aliyun Captcha", name: "Aliyun Captcha"},
+      {id: "GEETEST", name: "GEETEST"},
+      {id: "Cloudflare Turnstile", name: "Cloudflare Turnstile"},
     ]);
   } else {
     return [];
@@ -604,10 +710,15 @@ export function getProviderSubTypeOptions(type) {
   if (type === "WeCom" || type === "Infoflow") {
     return (
       [
-        {id: 'Internal', name: 'Internal'},
-        {id: 'Third-party', name: 'Third-party'},
+        {id: "Internal", name: "Internal"},
+        {id: "Third-party", name: "Third-party"},
       ]
     );
+  } else if (type === "Aliyun Captcha") {
+    return [
+      {id: "nc", name: "Sliding Validation"},
+      {id: "ic", name: "Intelligent Validation"},
+    ];
   } else {
     return [];
   }
@@ -621,78 +732,110 @@ export function renderLogo(application) {
   if (application.homepageUrl !== "") {
     return (
       <a target="_blank" rel="noreferrer" href={application.homepageUrl}>
-        <img width={250} src={application.logo} alt={application.displayName} style={{marginBottom: '30px'}}/>
+        <img width={250} src={application.logo} alt={application.displayName} style={{marginBottom: "10px"}} />
       </a>
-    )
+    );
   } else {
     return (
-      <img width={250} src={application.logo} alt={application.displayName} style={{marginBottom: '30px'}}/>
+      <img width={250} src={application.logo} alt={application.displayName} style={{marginBottom: "10px"}} />
     );
   }
 }
 
-export function goToLogin(ths, application) {
+export function getLoginLink(application) {
+  let url;
   if (application === null) {
-    return;
-  }
-
-  if (!application.enablePassword && window.location.pathname.includes("/signup/oauth/authorize")) {
-    const link = window.location.href.replace("/signup/oauth/authorize", "/login/oauth/authorize");
-    goToLink(link);
-    return;
-  }
-
-  if (authConfig.appName === application.name) {
-    goToLinkSoft(ths, "/login");
+    url = null;
+  } else if (!application.enablePassword && window.location.pathname.includes("/auto-signup/oauth/authorize")) {
+    url = window.location.href.replace("/auto-signup/oauth/authorize", "/login/oauth/authorize");
+  } else if (authConfig.appName === application.name) {
+    url = "/login";
+  } else if (application.signinUrl === "") {
+    url = path.join(application.homepageUrl, "/login");
   } else {
-    if (application.signinUrl === "") {
-      goToLink(`${application.homepageUrl}/login`);
-    } else {
-      goToLink(application.signinUrl);
-    }
+    url = application.signinUrl;
+  }
+  return url;
+}
+
+export function renderLoginLink(application, text) {
+  const url = getLoginLink(application);
+  return renderLink(url, text, null);
+}
+
+export function redirectToLoginPage(application, history) {
+  const loginLink = getLoginLink(application);
+  history.push(loginLink);
+}
+
+function renderLink(url, text, onClick) {
+  if (url === null) {
+    return null;
+  }
+
+  if (url.startsWith("/")) {
+    return (
+      <Link style={{float: "right"}} to={url} onClick={() => {
+        if (onClick !== null) {
+          onClick();
+        }
+      }}>{text}</Link>
+    );
+  } else if (url.startsWith("http")) {
+    return (
+      <a target="_blank" rel="noopener noreferrer" style={{float: "right"}} href={url} onClick={() => {
+        if (onClick !== null) {
+          onClick();
+        }
+      }}>{text}</a>
+    );
+  } else {
+    return null;
   }
 }
 
-export function goToSignup(ths, application) {
+export function renderSignupLink(application, text) {
+  let url;
   if (application === null) {
-    return;
-  }
-
-  if (!application.enablePassword && window.location.pathname.includes("/login/oauth/authorize")) {
-    const link = window.location.href.replace("/login/oauth/authorize", "/signup/oauth/authorize");
-    goToLink(link);
-    return;
-  }
-
-  if (authConfig.appName === application.name) {
-    goToLinkSoft(ths, "/signup");
+    url = null;
+  } else if (!application.enablePassword && window.location.pathname.includes("/login/oauth/authorize")) {
+    url = window.location.href.replace("/login/oauth/authorize", "/auto-signup/oauth/authorize");
+  } else if (authConfig.appName === application.name) {
+    url = "/signup";
   } else {
     if (application.signupUrl === "") {
-      goToLinkSoft(ths, `/signup/${application.name}`);
+      url = `/signup/${application.name}`;
     } else {
-      goToLink(application.signupUrl);
+      url = application.signupUrl;
     }
   }
+
+  const storeSigninUrl = () => {
+    sessionStorage.setItem("signinUrl", window.location.href);
+  };
+
+  return renderLink(url, text, storeSigninUrl);
 }
 
-export function goToForget(ths, application) {
+export function renderForgetLink(application, text) {
+  let url;
   if (application === null) {
-    return;
-  }
-
-  if (authConfig.appName === application.name) {
-    goToLinkSoft(ths, "/forget");
+    url = null;
+  } else if (authConfig.appName === application.name) {
+    url = "/forget";
   } else {
     if (application.forgetUrl === "") {
-      goToLinkSoft(ths, `/forget/${application.name}`);
+      url = `/forget/${application.name}`;
     } else {
-      goToLink(application.forgetUrl);
+      url = application.forgetUrl;
     }
   }
+
+  return renderLink(url, text, null);
 }
 
 export function renderHelmet(application) {
-  if (application === undefined || application === null || application.organizationObj === undefined || application.organizationObj === null ||application.organizationObj === "") {
+  if (application === undefined || application === null || application.organizationObj === undefined || application.organizationObj === null || application.organizationObj === "") {
     return null;
   }
 
@@ -701,13 +844,13 @@ export function renderHelmet(application) {
       <title>{application.organizationObj.displayName}</title>
       <link rel="icon" href={application.organizationObj.favicon} />
     </Helmet>
-  )
+  );
 }
 
 export function getLabel(text, tooltip) {
   return (
     <React.Fragment>
-      <span style={{ marginRight: 4 }}>{text}</span>
+      <span style={{marginRight: 4}}>{text}</span>
       <Tooltip placement="top" title={tooltip}>
         <QuestionCircleTwoTone twoToneColor="rgb(45,120,213)" />
       </Tooltip>
@@ -731,17 +874,17 @@ function maskString(s) {
 }
 
 export function getMaskedPhone(s) {
-  return s.replace(/(\d{3})\d*(\d{4})/,'$1****$2');
+  return s.replace(/(\d{3})\d*(\d{4})/, "$1****$2");
 }
 
 export function getMaskedEmail(email) {
-  if (email === "") return;
+  if (email === "") {return;}
   const tokens = email.split("@");
   let username = tokens[0];
   username = maskString(username);
 
   const domain = tokens[1];
-  let domainTokens = domain.split(".");
+  const domainTokens = domain.split(".");
   domainTokens[domainTokens.length - 2] = maskString(domainTokens[domainTokens.length - 2]);
 
   return `${username}@${domainTokens.join(".")}`;
@@ -760,7 +903,7 @@ export function getDeduplicatedArray(array, filterArray, key) {
 export function getNewRowNameForTable(table, rowName) {
   const emptyCount = table.filter(row => row.name.includes(rowName)).length;
   let res = rowName;
-  for (let i = 0; i < emptyCount; i ++) {
+  for (let i = 0; i < emptyCount; i++) {
     res = res + " ";
   }
   return res;
@@ -771,8 +914,11 @@ export function getTagColor(s) {
 }
 
 export function getTags(tags) {
-  let res = [];
-  if (!tags) return res;
+  const res = [];
+  if (!tags) {
+    return res;
+  }
+
   tags.forEach((tag, i) => {
     res.push(
       <Tag color={getTagColor(tag)}>
@@ -783,8 +929,20 @@ export function getTags(tags) {
   return res;
 }
 
+export function getTag(color, text) {
+  return (
+    <Tag color={color}>
+      {text}
+    </Tag>
+  );
+}
+
 export function getApplicationOrgName(application) {
   return `${application?.organizationObj.owner}/${application?.organizationObj.name}`;
+}
+
+export function getApplicationName(application) {
+  return `${application?.owner}/${application?.name}`;
 }
 
 export function getRandomName() {
@@ -805,100 +963,108 @@ export function getFromLink() {
 
 export function scrollToDiv(divId) {
   if (divId) {
-    let ele = document.getElementById(divId);
+    const ele = document.getElementById(divId);
     if (ele) {
       ele.scrollIntoView({behavior: "smooth"});
     }
   }
 }
 
+export function inIframe() {
+  try {
+    return window !== window.parent;
+  } catch (e) {
+    return true;
+  }
+}
+
 export function getSyncerTableColumns(syncer) {
   switch (syncer.type) {
-    case "Keycloak":
-      return [
-        {
-          "name":"ID",
-          "type":"string",
-          "casdoorName":"Id",
-          "isHashed":true,
-          "values":[
+  case "Keycloak":
+    return [
+      {
+        "name": "ID",
+        "type": "string",
+        "casdoorName": "Id",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"USERNAME",
-          "type":"string",
-          "casdoorName":"Name",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "USERNAME",
+        "type": "string",
+        "casdoorName": "Name",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"USERNAME",
-          "type":"string",
-          "casdoorName":"DisplayName",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "LAST_NAME+FIRST_NAME",
+        "type": "string",
+        "casdoorName": "DisplayName",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"EMAIL",
-          "type":"string",
-          "casdoorName":"Email",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "EMAIL",
+        "type": "string",
+        "casdoorName": "Email",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"EMAIL_VERIFIED",
-          "type":"boolean",
-          "casdoorName":"EmailVerified",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "EMAIL_VERIFIED",
+        "type": "boolean",
+        "casdoorName": "EmailVerified",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"FIRST_NAME",
-          "type":"string",
-          "casdoorName":"FirstName",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "FIRST_NAME",
+        "type": "string",
+        "casdoorName": "FirstName",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"LAST_NAME",
-          "type":"string",
-          "casdoorName":"LastName",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "LAST_NAME",
+        "type": "string",
+        "casdoorName": "LastName",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"CREATED_TIMESTAMP",
-          "type":"string",
-          "casdoorName":"CreatedTime",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "CREATED_TIMESTAMP",
+        "type": "string",
+        "casdoorName": "CreatedTime",
+        "isHashed": true,
+        "values": [
 
-          ]
-        },
-        {
-          "name":"ENABLED",
-          "type":"boolean",
-          "casdoorName":"IsForbidden",
-          "isHashed":true,
-          "values":[
+        ],
+      },
+      {
+        "name": "ENABLED",
+        "type": "boolean",
+        "casdoorName": "IsForbidden",
+        "isHashed": true,
+        "values": [
 
-          ]
-        }
-      ]
-    default:
-      return []
+        ],
+      },
+    ];
+  default:
+    return [];
   }
 }

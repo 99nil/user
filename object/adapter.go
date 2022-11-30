@@ -18,12 +18,15 @@ import (
 	"fmt"
 	"runtime"
 
-	"github.com/astaxie/beego"
+	"github.com/beego/beego"
+	xormadapter "github.com/casbin/xorm-adapter/v3"
 	"github.com/casdoor/casdoor/conf"
 	"github.com/casdoor/casdoor/util"
-	//_ "github.com/denisenkom/go-mssqldb" // db = mssql
-	_ "github.com/go-sql-driver/mysql" // db = mysql
-	//_ "github.com/lib/pq"                // db = postgres
+	_ "github.com/denisenkom/go-mssqldb" // db = mssql
+	_ "github.com/go-sql-driver/mysql"   // db = mysql
+	_ "github.com/lib/pq"                // db = postgres
+	"xorm.io/xorm/migrate"
+	//_ "github.com/mattn/go-sqlite3"    // db = sqlite3
 	"xorm.io/core"
 	"xorm.io/xorm"
 )
@@ -36,12 +39,14 @@ func InitConfig() {
 		panic(err)
 	}
 
+	beego.BConfig.WebConfig.Session.SessionOn = true
+
 	InitAdapter(true)
+	initMigrations()
 }
 
 func InitAdapter(createDatabase bool) {
-
-	adapter = NewAdapter(conf.GetConfigString("driverName"), conf.GetBeegoConfDataSourceName(), conf.GetConfigString("dbName"))
+	adapter = NewAdapter(conf.GetConfigString("driverName"), conf.GetConfigDataSourceName(), conf.GetConfigString("dbName"))
 	if createDatabase {
 		adapter.CreateDatabase()
 	}
@@ -138,6 +143,16 @@ func (a *Adapter) createTable() {
 		panic(err)
 	}
 
+	err = a.Engine.Sync2(new(Model))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(CasbinAdapter))
+	if err != nil {
+		panic(err)
+	}
+
 	err = a.Engine.Sync2(new(Provider))
 	if err != nil {
 		panic(err)
@@ -197,6 +212,16 @@ func (a *Adapter) createTable() {
 	if err != nil {
 		panic(err)
 	}
+
+	err = a.Engine.Sync2(new(PermissionRule))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(xormadapter.CasbinRule))
+	if err != nil {
+		panic(err)
+	}
 }
 
 func GetSession(owner string, offset, limit int, field, value, sortField, sortOrder string) *xorm.Session {
@@ -221,4 +246,23 @@ func GetSession(owner string, offset, limit int, field, value, sortField, sortOr
 		session = session.Desc(util.SnakeString(sortField))
 	}
 	return session
+}
+
+func initMigrations() {
+	migrations := []*migrate.Migration{
+		{
+			ID: "20221015CasbinRule--fill ptype field with p",
+			Migrate: func(tx *xorm.Engine) error {
+				_, err := tx.Cols("ptype").Update(&xormadapter.CasbinRule{
+					Ptype: "p",
+				})
+				return err
+			},
+			Rollback: func(tx *xorm.Engine) error {
+				return tx.DropTables(&xormadapter.CasbinRule{})
+			},
+		},
+	}
+	m := migrate.New(adapter.Engine, migrate.DefaultOptions, migrations)
+	m.Migrate()
 }

@@ -18,16 +18,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/astaxie/beego"
+	"github.com/beego/beego"
+	"github.com/beego/beego/logs"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
 
+// ApiController
 // controller for handlers under /api uri
 type ApiController struct {
 	beego.Controller
 }
 
+// RootController
 // controller for handlers directly under / (root)
 type RootController struct {
 	ApiController
@@ -56,11 +59,11 @@ func (c *ApiController) IsGlobalAdmin() bool {
 func (c *ApiController) GetSessionUsername() string {
 	// check if user session expired
 	sessionData := c.GetSessionData()
+
 	if sessionData != nil &&
 		sessionData.ExpireTime != 0 &&
 		sessionData.ExpireTime < time.Now().Unix() {
-		c.SetSessionUsername("")
-		c.SetSessionData(nil)
+		c.ClearUserSession()
 		return ""
 	}
 
@@ -81,13 +84,17 @@ func (c *ApiController) GetSessionApplication() *object.Application {
 	return application
 }
 
+func (c *ApiController) ClearUserSession() {
+	c.SetSessionUsername("")
+	c.SetSessionData(nil)
+}
+
 func (c *ApiController) GetSessionOidc() (string, string) {
 	sessionData := c.GetSessionData()
 	if sessionData != nil &&
 		sessionData.ExpireTime != 0 &&
 		sessionData.ExpireTime < time.Now().Unix() {
-		c.SetSessionUsername("")
-		c.SetSessionData(nil)
+		c.ClearUserSession()
 		return "", ""
 	}
 	scopeValue := c.GetSession("scope")
@@ -118,7 +125,8 @@ func (c *ApiController) GetSessionData() *SessionData {
 	sessionData := &SessionData{}
 	err := util.JsonToStruct(session.(string), sessionData)
 	if err != nil {
-		panic(err)
+		logs.Error("GetSessionData failed, error: %s", err)
+		return nil
 	}
 
 	return sessionData

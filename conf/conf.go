@@ -15,19 +15,62 @@
 package conf
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/astaxie/beego"
+	"github.com/beego/beego"
 )
+
+type Quota struct {
+	Organization int `json:"organization"`
+	User         int `json:"user"`
+	Application  int `json:"application"`
+	Provider     int `json:"provider"`
+}
+
+var quota = &Quota{-1, -1, -1, -1}
+
+func init() {
+	// this array contains the beego configuration items that may be modified via env
+	presetConfigItems := []string{"httpport", "appname"}
+	for _, key := range presetConfigItems {
+		if value, ok := os.LookupEnv(key); ok {
+			err := beego.AppConfig.Set(key, value)
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+	initQuota()
+}
+
+func initQuota() {
+	res := beego.AppConfig.String("quota")
+	if res != "" {
+		err := json.Unmarshal([]byte(res), quota)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
 
 func GetConfigString(key string) string {
 	if value, ok := os.LookupEnv(key); ok {
 		return value
 	}
-	return beego.AppConfig.String(key)
+
+	res := beego.AppConfig.String(key)
+	if res == "" {
+		if key == "staticBaseUrl" {
+			res = "https://cdn.casbin.org"
+		}
+	}
+
+	return res
 }
 
 func GetConfigBool(key string) (bool, error) {
@@ -46,23 +89,34 @@ func GetConfigInt64(key string) (int64, error) {
 	return num, err
 }
 
-func init() {
-	//this array contains the beego configuration items that may be modified via env
-	var presetConfigItems = []string{"httpport", "appname"}
-	for _, key := range presetConfigItems {
-		if value, ok := os.LookupEnv(key); ok {
-			beego.AppConfig.Set(key, value)
-		}
-	}
-}
-
-func GetBeegoConfDataSourceName() string {
+func GetConfigDataSourceName() string {
 	dataSourceName := GetConfigString("dataSourceName")
 
 	runningInDocker := os.Getenv("RUNNING_IN_DOCKER")
 	if runningInDocker == "true" {
-		dataSourceName = strings.ReplaceAll(dataSourceName, "localhost", "host.docker.internal")
+		// https://stackoverflow.com/questions/48546124/what-is-linux-equivalent-of-host-docker-internal
+		if runtime.GOOS == "linux" {
+			dataSourceName = strings.ReplaceAll(dataSourceName, "localhost", "172.17.0.1")
+		} else {
+			dataSourceName = strings.ReplaceAll(dataSourceName, "localhost", "host.docker.internal")
+		}
 	}
 
 	return dataSourceName
+}
+
+func IsDemoMode() bool {
+	return strings.ToLower(GetConfigString("isDemoMode")) == "true"
+}
+
+func GetConfigBatchSize() int {
+	res, err := strconv.Atoi(GetConfigString("batchSize"))
+	if err != nil {
+		res = 100
+	}
+	return res
+}
+
+func GetConfigQuota() *Quota {
+	return quota
 }

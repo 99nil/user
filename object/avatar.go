@@ -50,14 +50,26 @@ func downloadFile(url string) (*bytes.Buffer, error) {
 	return fileBuffer, nil
 }
 
-func getPermanentAvatarUrl(organization string, username string, url string) string {
+func getPermanentAvatarUrl(organization string, username string, url string, upload bool) string {
+	if url == "" {
+		return ""
+	}
+
 	if defaultStorageProvider == nil {
 		return ""
 	}
 
 	fullFilePath := fmt.Sprintf("/avatar/%s/%s.png", organization, username)
-	uploadedFileUrl, _ := getUploadFileUrl(defaultStorageProvider, fullFilePath, false)
+	uploadedFileUrl, _ := GetUploadFileUrl(defaultStorageProvider, fullFilePath, false)
 
+	if upload {
+		DownloadAndUpload(url, fullFilePath)
+	}
+
+	return uploadedFileUrl
+}
+
+func DownloadAndUpload(url string, fullFilePath string) {
 	fileBuffer, err := downloadFile(url)
 	if err != nil {
 		panic(err)
@@ -67,6 +79,4 @@ func getPermanentAvatarUrl(organization string, username string, url string) str
 	if err != nil {
 		panic(err)
 	}
-
-	return uploadedFileUrl
 }

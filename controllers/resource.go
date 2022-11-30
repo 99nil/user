@@ -22,11 +22,12 @@ import (
 	"mime"
 	"path/filepath"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
 
+// GetResources
 // @router /get-resources [get]
 // @Tag Resource API
 // @Title GetResources
@@ -50,6 +51,7 @@ func (c *ApiController) GetResources() {
 	}
 }
 
+// GetResource
 // @Tag Resource API
 // @Title GetResource
 // @router /get-resource [get]
@@ -60,6 +62,7 @@ func (c *ApiController) GetResource() {
 	c.ServeJSON()
 }
 
+// UpdateResource
 // @Tag Resource API
 // @Title UpdateResource
 // @router /update-resource [post]
@@ -69,13 +72,15 @@ func (c *ApiController) UpdateResource() {
 	var resource object.Resource
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &resource)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateResource(id, &resource))
 	c.ServeJSON()
 }
 
+// AddResource
 // @Tag Resource API
 // @Title AddResource
 // @router /add-resource [post]
@@ -83,13 +88,15 @@ func (c *ApiController) AddResource() {
 	var resource object.Resource
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &resource)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddResource(&resource))
 	c.ServeJSON()
 }
 
+// DeleteResource
 // @Tag Resource API
 // @Title DeleteResource
 // @router /delete-resource [post]
@@ -97,7 +104,8 @@ func (c *ApiController) DeleteResource() {
 	var resource object.Resource
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &resource)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	provider, _, ok := c.GetProviderFromContext("Storage")
@@ -105,7 +113,7 @@ func (c *ApiController) DeleteResource() {
 		return
 	}
 
-	err = object.DeleteFile(provider, resource.Name)
+	err = object.DeleteFile(provider, resource.Name, c.GetAcceptLanguage())
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -115,6 +123,7 @@ func (c *ApiController) DeleteResource() {
 	c.ServeJSON()
 }
 
+// UploadResource
 // @Tag Resource API
 // @Title UploadResource
 // @router /upload-resource [post]
@@ -136,7 +145,7 @@ func (c *ApiController) UploadResource() {
 	defer file.Close()
 
 	if username == "" || fullFilePath == "" {
-		c.ResponseError(fmt.Sprintf("username or fullFilePath is empty: username = %s, fullFilePath = %s", username, fullFilePath))
+		c.ResponseError(fmt.Sprintf(c.T("ResourceErr.UsernameOrFilePathEmpty"), username, fullFilePath))
 		return
 	}
 
@@ -147,7 +156,7 @@ func (c *ApiController) UploadResource() {
 		return
 	}
 
-	provider, user, ok := c.GetProviderFromContext("Storage")
+	provider, _, ok := c.GetProviderFromContext("Storage")
 	if !ok {
 		return
 	}
@@ -160,6 +169,20 @@ func (c *ApiController) UploadResource() {
 		ext := filepath.Ext(filename)
 		mimeType := mime.TypeByExtension(ext)
 		fileType, _ = util.GetOwnerAndNameFromId(mimeType)
+	}
+
+	if tag != "avatar" && tag != "termsOfUse" {
+		ext := filepath.Ext(filepath.Base(fullFilePath))
+		index := len(fullFilePath) - len(ext)
+		for i := 1; ; i++ {
+			_, objectKey := object.GetUploadFileUrl(provider, fullFilePath, true)
+			if object.GetResourceCount(owner, username, "name", objectKey) == 0 {
+				break
+			}
+
+			// duplicated fullFilePath found, change it
+			fullFilePath = fullFilePath[:index] + fmt.Sprintf("-%d", i) + ext
+		}
 	}
 
 	fileUrl, objectKey, err := object.UploadFileSafe(provider, fullFilePath, fileBuffer)
@@ -193,12 +216,10 @@ func (c *ApiController) UploadResource() {
 
 	switch tag {
 	case "avatar":
+		user := object.GetUserNoCheck(util.GetId(owner, username))
 		if user == nil {
-			user = object.GetUserNoCheck(username)
-			if user == nil {
-				c.ResponseError("user is nil for tag: \"avatar\"")
-				return
-			}
+			c.ResponseError(c.T("ResourceErr.UserIsNil"))
+			return
 		}
 
 		user.Avatar = fileUrl

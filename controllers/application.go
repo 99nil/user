@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -46,7 +46,7 @@ func (c *ApiController) GetApplications() {
 		if organization == "" {
 			applications = object.GetApplications(owner)
 		} else {
-			applications = object.GetApplicationsByOrganizationName(owner, organization)
+			applications = object.GetOrganizationApplications(owner, organization)
 		}
 
 		c.Data["json"] = object.GetMaskedApplications(applications, userId)
@@ -86,12 +86,48 @@ func (c *ApiController) GetUserApplication() {
 	id := c.Input().Get("id")
 	user := object.GetUser(id)
 	if user == nil {
-		c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", id))
+		c.ResponseError(fmt.Sprintf(c.T("UserErr.DoNotExist"), id))
 		return
 	}
 
 	c.Data["json"] = object.GetMaskedApplication(object.GetApplicationByUser(user), userId)
 	c.ServeJSON()
+}
+
+// GetOrganizationApplications
+// @Title GetOrganizationApplications
+// @Tag Application API
+// @Description get the detail of the organization's application
+// @Param   organization     query    string  true        "The organization name"
+// @Success 200 {array} object.Application The Response object
+// @router /get-organization-applications [get]
+func (c *ApiController) GetOrganizationApplications() {
+	userId := c.GetSessionUsername()
+	organization := c.Input().Get("organization")
+	owner := c.Input().Get("owner")
+	limit := c.Input().Get("pageSize")
+	page := c.Input().Get("p")
+	field := c.Input().Get("field")
+	value := c.Input().Get("value")
+	sortField := c.Input().Get("sortField")
+	sortOrder := c.Input().Get("sortOrder")
+
+	if organization == "" {
+		c.ResponseError(c.T("ParameterErr.OrgMissingErr"))
+		return
+	}
+
+	if limit == "" || page == "" {
+		var applications []*object.Application
+		applications = object.GetOrganizationApplications(owner, organization)
+		c.Data["json"] = object.GetMaskedApplications(applications, userId)
+		c.ServeJSON()
+	} else {
+		limit := util.ParseInt(limit)
+		paginator := pagination.SetPaginator(c.Ctx, limit, int64(object.GetOrganizationApplicationCount(owner, organization, field, value)))
+		applications := object.GetMaskedApplications(object.GetPaginationOrganizationApplications(owner, organization, paginator.Offset(), limit, field, value, sortField, sortOrder), userId)
+		c.ResponseOk(applications, paginator.Nums())
+	}
 }
 
 // UpdateApplication
@@ -108,7 +144,8 @@ func (c *ApiController) UpdateApplication() {
 	var application object.Application
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &application)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateApplication(id, &application))
@@ -126,7 +163,14 @@ func (c *ApiController) AddApplication() {
 	var application object.Application
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &application)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
+	}
+
+	count := object.GetApplicationCount("", "", "")
+	if err := checkQuotaForApplication(count); err != nil {
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddApplication(&application))
@@ -144,7 +188,8 @@ func (c *ApiController) DeleteApplication() {
 	var application object.Application
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &application)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteApplication(&application))

@@ -51,24 +51,23 @@ class HomePage extends React.Component {
         {link: "/applications", name: i18next.t("general:Applications"), organizer: i18next.t("general:Applications that require authentication")},
       ];
 
-      for (let i = 0; i < items.length; i ++) {
+      for (let i = 0; i < items.length; i++) {
         let filename = items[i].link;
         if (filename === "/account") {
           filename = "/users";
         }
-        items[i].logo = `https://cdn.casbin.com/static/img${filename}.png`;
+        items[i].logo = `${Setting.StaticBaseUrl}/img${filename}.png`;
         items[i].createdTime = "";
       }
     } else {
       this.state.applications.forEach(application => {
-        console.log(application)
         items.push({
           link: application.homepageUrl, name: application.displayName, organizer: application.description, logo: application.logo, createdTime: "",
         });
       });
     }
 
-    return items
+    return items;
   }
 
   renderCards() {
@@ -84,26 +83,26 @@ class HomePage extends React.Component {
           {
             items.map(item => {
               return (
-                <SingleCard logo={item.logo} link={item.link} title={item.name} desc={item.organizer} isSingle={items.length === 1} />
-              )
+                <SingleCard key={item.link} logo={item.logo} link={item.link} title={item.name} desc={item.organizer} isSingle={items.length === 1} />
+              );
             })
           }
         </Card>
-      )
+      );
     } else {
       return (
-        <div style={{marginRight:'15px',marginLeft:'15px'}}>
-              <Row style={{marginLeft: "-20px", marginRight: "-20px", marginTop: "20px"}} gutter={24}>
-                {
-                  items.map(item => {
-                    return (
-                      <SingleCard logo={item.logo} link={item.link} title={item.name} desc={item.organizer} time={item.createdTime} isSingle={items.length === 1} key={item.name} />
-                    )
-                  })
-                }
-              </Row>
+        <div style={{marginRight: "15px", marginLeft: "15px"}}>
+          <Row style={{marginLeft: "-20px", marginRight: "-20px", marginTop: "20px"}} gutter={24}>
+            {
+              items.map(item => {
+                return (
+                  <SingleCard logo={item.logo} link={item.link} title={item.name} desc={item.organizer} time={item.createdTime} isSingle={items.length === 1} key={item.name} />
+                );
+              })
+            }
+          </Row>
         </div>
-      )
+      );
     }
   }
 
@@ -111,14 +110,14 @@ class HomePage extends React.Component {
     return (
       <div>
         <Row style={{width: "100%"}}>
-          <Col span={24} style={{display: "flex", justifyContent:  "center"}} >
+          <Col span={24} style={{display: "flex", justifyContent: "center"}} >
             {
               this.renderCards()
             }
           </Col>
         </Row>
       </div>
-    )
+    );
   }
 }
 

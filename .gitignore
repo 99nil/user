@@ -19,6 +19,7 @@ bin/
 .idea/
 *.iml
 .vscode/
+.DS_Store
 
 tmp/
 tmpFiles/
@@ -27,3 +28,6 @@ logs/
 files/
 lastupdate.tmp
 commentsRouter*.go
+
+# ignore build result
+casdoor

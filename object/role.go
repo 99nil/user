@@ -16,6 +16,7 @@ package object
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/casdoor/casdoor/util"
 	"xorm.io/core"
@@ -29,6 +30,7 @@ type Role struct {
 
 	Users     []string `xorm:"mediumtext" json:"users"`
 	Roles     []string `xorm:"mediumtext" json:"roles"`
+	Domains   []string `xorm:"mediumtext" json:"domains"`
 	IsEnabled bool     `json:"isEnabled"`
 }
 
@@ -88,8 +90,16 @@ func GetRole(id string) *Role {
 
 func UpdateRole(id string, role *Role) bool {
 	owner, name := util.GetOwnerAndNameFromId(id)
-	if getRole(owner, name) == nil {
+	oldRole := getRole(owner, name)
+	if oldRole == nil {
 		return false
+	}
+
+	if name != role.Name {
+		err := roleChangeTrigger(name, role.Name)
+		if err != nil {
+			return false
+		}
 	}
 
 	affected, err := adapter.Engine.ID(core.PK{owner, name}).AllCols().Update(role)
@@ -120,4 +130,65 @@ func DeleteRole(role *Role) bool {
 
 func (role *Role) GetId() string {
 	return fmt.Sprintf("%s/%s", role.Owner, role.Name)
+}
+
+func GetRolesByUser(userId string) []*Role {
+	roles := []*Role{}
+	err := adapter.Engine.Where("users like ?", "%"+userId+"%").Find(&roles)
+	if err != nil {
+		panic(err)
+	}
+
+	return roles
+}
+
+func roleChangeTrigger(oldName string, newName string) error {
+	session := adapter.Engine.NewSession()
+	defer session.Close()
+
+	err := session.Begin()
+	if err != nil {
+		return err
+	}
+
+	var roles []*Role
+	err = adapter.Engine.Find(&roles)
+	if err != nil {
+		return err
+	}
+	for _, role := range roles {
+		for j, u := range role.Roles {
+			split := strings.Split(u, "/")
+			if split[1] == oldName {
+				split[1] = newName
+				role.Roles[j] = split[0] + "/" + split[1]
+			}
+		}
+		_, err = session.Where("name=?", role.Name).Update(role)
+		if err != nil {
+			return err
+		}
+	}
+
+	var permissions []*Permission
+	err = adapter.Engine.Find(&permissions)
+	if err != nil {
+		return err
+	}
+	for _, permission := range permissions {
+		for j, u := range permission.Roles {
+			// u = organization/username
+			split := strings.Split(u, "/")
+			if split[1] == oldName {
+				split[1] = newName
+				permission.Roles[j] = split[0] + "/" + split[1]
+			}
+		}
+		_, err = session.Where("name=?", permission.Name).Update(permission)
+		if err != nil {
+			return err
+		}
+	}
+
+	return session.Commit()
 }

@@ -16,7 +16,6 @@ import React from "react";
 import {Button, Descriptions, Spin} from "antd";
 import i18next from "i18next";
 import * as ProductBackend from "./backend/ProductBackend";
-import * as ProviderBackend from "./backend/ProviderBackend";
 import * as Setting from "./Setting";
 
 class ProductBuyPage extends React.Component {
@@ -26,14 +25,12 @@ class ProductBuyPage extends React.Component {
       classes: props,
       productName: props.match?.params.productName,
       product: null,
-      providers: [],
       isPlacingOrder: false,
     };
   }
 
   UNSAFE_componentWillMount() {
     this.getProduct();
-    this.getPaymentProviders();
   }
 
   getProduct() {
@@ -41,15 +38,6 @@ class ProductBuyPage extends React.Component {
       .then((product) => {
         this.setState({
           product: product,
-        });
-      });
-  }
-
-  getPaymentProviders() {
-    ProviderBackend.getProviders("admin")
-      .then((res) => {
-        this.setState({
-          providers: res.filter(provider => provider.category === "Payment"),
         });
       });
   }
@@ -84,32 +72,6 @@ class ProductBuyPage extends React.Component {
 
   getPrice(product) {
     return `${this.getCurrencySymbol(product)}${product?.price} (${this.getCurrencyText(product)})`;
-  }
-
-  getProviders(product) {
-    if (this.state.providers.length === 0 || product.providers.length === 0) {
-      return [];
-    }
-
-    let providerMap = {};
-    this.state.providers.forEach(provider => {
-      providerMap[provider.name] = provider;
-    })
-
-    return product.providers.map(providerName => providerMap[providerName]);
-  }
-
-  getPayUrl(product, provider) {
-    if (product === null || provider === null) {
-      return "";
-    }
-
-    return `https://${provider.type}`;
-    // if (provider.type === "WeChat") {
-    //   return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`;
-    // } else if (provider.type === "GitHub") {
-    //   return `${endpoint}?client_id=${provider.clientId}&redirect_uri=${redirectUri}&scope=${scope}&response_type=code&state=${state}`;
-    // }
   }
 
   buyProduct(product, provider) {
@@ -153,7 +115,7 @@ class ProductBuyPage extends React.Component {
           text
         }
       </Button>
-    )
+    );
   }
 
   renderProviderButton(provider, product) {
@@ -165,7 +127,7 @@ class ProductBuyPage extends React.Component {
           }
         </span>
       </span>
-    )
+    );
   }
 
   renderPay(product) {
@@ -176,14 +138,13 @@ class ProductBuyPage extends React.Component {
     if (product.state !== "Published") {
       return i18next.t("product:This product is currently not in sale.");
     }
-    if (product.providers.length === 0) {
+    if (product.providerObjs.length === 0) {
       return i18next.t("product:There is no payment channel for this product.");
     }
 
-    const providers = this.getProviders(product);
-    return providers.map(provider => {
+    return product.providerObjs.map(provider => {
       return this.renderProviderButton(provider, product);
-    })
+    });
   }
 
   render() {
@@ -198,22 +159,22 @@ class ProductBuyPage extends React.Component {
         <Spin spinning={this.state.isPlacingOrder} size="large" tip={i18next.t("product:Placing order...")} style={{paddingTop: "10%"}} >
           <Descriptions title={i18next.t("product:Buy Product")} bordered>
             <Descriptions.Item label={i18next.t("general:Name")} span={3}>
-            <span style={{fontSize: 28}}>
-              {product?.displayName}
-            </span>
+              <span style={{fontSize: 28}}>
+                {product?.displayName}
+              </span>
             </Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Detail")}><span style={{fontSize: 16}}>{product?.detail}</span></Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Tag")}><span style={{fontSize: 16}}>{product?.tag}</span></Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:SKU")}><span style={{fontSize: 16}}>{product?.name}</span></Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Image")} span={3}>
-              <img src={product?.image} alt={product?.image} height={90} style={{marginBottom: '20px'}}/>
+              <img src={product?.image} alt={product?.name} height={90} style={{marginBottom: "20px"}} />
             </Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Price")}>
-            <span style={{fontSize: 28, color: "red", fontWeight: "bold"}}>
-              {
-                this.getPrice(product)
-              }
-            </span>
+              <span style={{fontSize: 28, color: "red", fontWeight: "bold"}}>
+                {
+                  this.getPrice(product)
+                }
+              </span>
             </Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Quantity")}><span style={{fontSize: 16}}>{product?.quantity}</span></Descriptions.Item>
             <Descriptions.Item label={i18next.t("product:Sold")}><span style={{fontSize: 16}}>{product?.sold}</span></Descriptions.Item>
@@ -225,7 +186,7 @@ class ProductBuyPage extends React.Component {
           </Descriptions>
         </Spin>
       </div>
-    )
+    );
   }
 }
 

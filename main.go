@@ -18,11 +18,12 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/astaxie/beego"
-	"github.com/astaxie/beego/logs"
-	_ "github.com/astaxie/beego/session/redis"
+	"github.com/beego/beego"
+	"github.com/beego/beego/logs"
+	_ "github.com/beego/beego/session/redis"
 	"github.com/casdoor/casdoor/authz"
 	"github.com/casdoor/casdoor/conf"
+	"github.com/casdoor/casdoor/controllers"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/proxy"
 	"github.com/casdoor/casdoor/routers"
@@ -36,24 +37,28 @@ func main() {
 
 	object.InitAdapter(*createDatabase)
 	object.InitDb()
+	object.InitFromFile()
 	object.InitDefaultStorageProvider()
 	object.InitLdapAutoSynchronizer()
 	proxy.InitHttpClient()
 	authz.InitAuthz()
 
-	util.SafeGoroutine(func() {object.RunSyncUsersJob()})
+	util.SafeGoroutine(func() { object.RunSyncUsersJob() })
 
-	//beego.DelStaticPath("/static")
-	beego.SetStaticPath("/static", "web/build/static")
+	// beego.DelStaticPath("/static")
+	// beego.SetStaticPath("/static", "web/build/static")
+
 	beego.BConfig.WebConfig.DirectoryIndex = true
 	beego.SetStaticPath("/swagger", "swagger")
 	beego.SetStaticPath("/files", "files")
 	// https://studygolang.com/articles/2303
 	beego.InsertFilter("*", beego.BeforeRouter, routers.StaticFilter)
 	beego.InsertFilter("*", beego.BeforeRouter, routers.AutoSigninFilter)
+	beego.InsertFilter("*", beego.BeforeRouter, routers.CorsFilter)
 	beego.InsertFilter("*", beego.BeforeRouter, routers.AuthzFilter)
 	beego.InsertFilter("*", beego.BeforeRouter, routers.RecordMessage)
 
+	beego.BConfig.WebConfig.Session.SessionOn = true
 	beego.BConfig.WebConfig.Session.SessionName = "casdoor_session_id"
 	if conf.GetConfigString("redisEndpoint") == "" {
 		beego.BConfig.WebConfig.Session.SessionProvider = "file"
@@ -63,14 +68,17 @@ func main() {
 		beego.BConfig.WebConfig.Session.SessionProviderConfig = conf.GetConfigString("redisEndpoint")
 	}
 	beego.BConfig.WebConfig.Session.SessionCookieLifeTime = 3600 * 24 * 30
-	//beego.BConfig.WebConfig.Session.SessionCookieSameSite = http.SameSiteNoneMode
+	// beego.BConfig.WebConfig.Session.SessionCookieSameSite = http.SameSiteNoneMode
 
 	err := logs.SetLogger("file", `{"filename":"logs/casdoor.log","maxdays":99999,"perm":"0770"}`)
 	if err != nil {
 		panic(err)
 	}
 	port := beego.AppConfig.DefaultInt("httpport", 8000)
-	//logs.SetLevel(logs.LevelInformational)
+	// logs.SetLevel(logs.LevelInformational)
 	logs.SetLogFuncCall(false)
+
+	go controllers.StartLdapServer()
+
 	beego.Run(fmt.Sprintf(":%v", port))
 }

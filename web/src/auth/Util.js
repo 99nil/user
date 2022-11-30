@@ -13,7 +13,10 @@
 // limitations under the License.
 
 import React from "react";
-import {Alert, Button, message, Result} from "antd";
+import {Alert, Button, Result, message} from "antd";
+import {getWechatMessageEvent} from "./AuthBackend";
+import * as Setting from "../Setting";
+import * as Provider from "./Provider";
 
 export function showMessage(type, text) {
   if (type === "success") {
@@ -39,7 +42,7 @@ export function renderMessage(msg) {
           }
         />
       </div>
-    )
+    );
   } else {
     return null;
   }
@@ -69,26 +72,26 @@ export function renderMessageLarge(ths, msg) {
         >
         </Result>
       </div>
-    )
+    );
   } else {
     return null;
   }
 }
 
-function getRefinedValue(value){
-  return (value === null)? "" : value
+function getRefinedValue(value) {
+  return (value === null) ? "" : value;
 }
 
-export function getCasParameters(params){
+export function getCasParameters(params) {
   const queries = (params !== undefined) ? params : new URLSearchParams(window.location.search);
-  const service = getRefinedValue(queries.get("service"))
-  const renew = getRefinedValue(queries.get("renew"))
-  const gateway = getRefinedValue(queries.get("gateway"))
+  const service = getRefinedValue(queries.get("service"));
+  const renew = getRefinedValue(queries.get("renew"));
+  const gateway = getRefinedValue(queries.get("gateway"));
   return {
     service: service,
     renew: renew,
     gateway: gateway,
-  }
+  };
 }
 
 export function getOAuthGetParameters(params) {
@@ -103,6 +106,7 @@ export function getOAuthGetParameters(params) {
   const codeChallenge = getRefinedValue(queries.get("code_challenge"));
   const samlRequest = getRefinedValue(queries.get("SAMLRequest"));
   const relayState = getRefinedValue(queries.get("RelayState"));
+  const noRedirect = getRefinedValue(queries.get("noRedirect"));
 
   if ((clientId === undefined || clientId === null || clientId === "") && (samlRequest === "" || samlRequest === undefined)) {
     // login
@@ -120,19 +124,41 @@ export function getOAuthGetParameters(params) {
       codeChallenge: codeChallenge,
       samlRequest: samlRequest,
       relayState: relayState,
+      noRedirect: noRedirect,
     };
   }
 }
 
-export function getQueryParamsToState(applicationName, providerName, method) {
+export function getStateFromQueryParams(applicationName, providerName, method, isShortState) {
   let query = window.location.search;
   query = `${query}&application=${applicationName}&provider=${providerName}&method=${method}`;
   if (method === "link") {
     query = `${query}&from=${window.location.pathname}`;
   }
-  return btoa(query);
+
+  if (!isShortState) {
+    return btoa(query);
+  } else {
+    const state = providerName;
+    sessionStorage.setItem(state, query);
+    return state;
+  }
 }
 
-export function stateToGetQueryParams(state) {
-  return atob(state);
+export function getQueryParamsFromState(state) {
+  const query = sessionStorage.getItem(state);
+  if (query === null) {
+    return atob(state);
+  } else {
+    return query;
+  }
+}
+
+export function getEvent(application, provider) {
+  getWechatMessageEvent()
+    .then(res => {
+      if (res.data === "SCAN" || res.data === "subscribe") {
+        Setting.goToLink(Provider.getAuthUrl(application, provider, "signup"));
+      }
+    });
 }

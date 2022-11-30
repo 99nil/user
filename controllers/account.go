@@ -64,6 +64,10 @@ type RequestForm struct {
 	RelayState   string `json:"relayState"`
 	SamlRequest  string `json:"samlRequest"`
 	SamlResponse string `json:"samlResponse"`
+
+	CaptchaType  string `json:"captchaType"`
+	CaptchaToken string `json:"captchaToken"`
+	ClientSecret string `json:"clientSecret"`
 }
 
 type Response struct {
@@ -75,12 +79,17 @@ type Response struct {
 	Data2  interface{} `json:"data2"`
 }
 
-type HumanCheck struct {
-	Type         string      `json:"type"`
-	AppKey       string      `json:"appKey"`
-	Scene        string      `json:"scene"`
-	CaptchaId    string      `json:"captchaId"`
-	CaptchaImage interface{} `json:"captchaImage"`
+type Captcha struct {
+	Type          string `json:"type"`
+	AppKey        string `json:"appKey"`
+	Scene         string `json:"scene"`
+	CaptchaId     string `json:"captchaId"`
+	CaptchaImage  []byte `json:"captchaImage"`
+	ClientId      string `json:"clientId"`
+	ClientSecret  string `json:"clientSecret"`
+	ClientId2     string `json:"clientId2"`
+	ClientSecret2 string `json:"clientSecret2"`
+	SubType       string `json:"subType"`
 }
 
 // Signup
@@ -93,33 +102,34 @@ type HumanCheck struct {
 // @router /signup [post]
 func (c *ApiController) Signup() {
 	if c.GetSessionUsername() != "" {
-		c.ResponseError("Please sign out first before signing up", c.GetSessionUsername())
+		c.ResponseError(c.T("SignUpErr.SignOutFirst"), c.GetSessionUsername())
 		return
 	}
 
 	var form RequestForm
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &form)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	application := object.GetApplication(fmt.Sprintf("admin/%s", form.Application))
 	if !application.EnableSignUp {
-		c.ResponseError("The application does not allow to sign up new account")
+		c.ResponseError(c.T("SignUpErr.DoNotAllowSignUp"))
 		return
 	}
 
 	organization := object.GetOrganization(fmt.Sprintf("%s/%s", "admin", form.Organization))
-	msg := object.CheckUserSignup(application, organization, form.Username, form.Password, form.Name, form.FirstName, form.LastName, form.Email, form.Phone, form.Affiliation)
+	msg := object.CheckUserSignup(application, organization, form.Username, form.Password, form.Name, form.FirstName, form.LastName, form.Email, form.Phone, form.Affiliation, c.GetAcceptLanguage())
 	if msg != "" {
 		c.ResponseError(msg)
 		return
 	}
 
 	if application.IsSignupItemVisible("Email") && application.GetSignupItemRule("Email") != "No verification" && form.Email != "" {
-		checkResult := object.CheckVerificationCode(form.Email, form.EmailCode)
+		checkResult := object.CheckVerificationCode(form.Email, form.EmailCode, c.GetAcceptLanguage())
 		if len(checkResult) != 0 {
-			c.ResponseError(fmt.Sprintf("Email: %s", checkResult))
+			c.ResponseError(c.T("EmailErr.EmailCheckResult"), checkResult)
 			return
 		}
 	}
@@ -127,9 +137,9 @@ func (c *ApiController) Signup() {
 	var checkPhone string
 	if application.IsSignupItemVisible("Phone") && form.Phone != "" {
 		checkPhone = fmt.Sprintf("+%s%s", form.PhonePrefix, form.Phone)
-		checkResult := object.CheckVerificationCode(checkPhone, form.PhoneCode)
+		checkResult := object.CheckVerificationCode(checkPhone, form.PhoneCode, c.GetAcceptLanguage())
 		if len(checkResult) != 0 {
-			c.ResponseError(fmt.Sprintf("Phone: %s", checkResult))
+			c.ResponseError(c.T("PhoneErr.PhoneCheckResult"), checkResult)
 			return
 		}
 	}
@@ -151,6 +161,12 @@ func (c *ApiController) Signup() {
 		username = id
 	}
 
+	initScore, err := getInitScore()
+	if err != nil {
+		c.ResponseError(fmt.Errorf(c.T("InitErr.InitScoreFailed"), err).Error())
+		return
+	}
+
 	user := &object.User{
 		Owner:             form.Organization,
 		Name:              username,
@@ -166,7 +182,7 @@ func (c *ApiController) Signup() {
 		Affiliation:       form.Affiliation,
 		IdCard:            form.IdCard,
 		Region:            form.Region,
-		Score:             getInitScore(),
+		Score:             initScore,
 		IsAdmin:           false,
 		IsGlobalAdmin:     false,
 		IsForbidden:       false,
@@ -193,7 +209,7 @@ func (c *ApiController) Signup() {
 
 	affected := object.AddUser(user)
 	if !affected {
-		c.ResponseError(fmt.Sprintf("Failed to create user, user information is invalid: %s", util.StructToJson(user)))
+		c.ResponseError(c.T("UserErr.InvalidInformation"), util.StructToJson(user))
 		return
 	}
 
@@ -212,7 +228,7 @@ func (c *ApiController) Signup() {
 	record.User = user.Name
 	util.SafeGoroutine(func() { object.AddRecord(record) })
 
-	userId := fmt.Sprintf("%s/%s", user.Owner, user.Name)
+	userId := user.GetId()
 	util.LogInfo(c.Ctx, "API: [%s] is signed up as new user", userId)
 
 	c.ResponseOk(userId)
@@ -223,14 +239,13 @@ func (c *ApiController) Signup() {
 // @Tag Login API
 // @Description logout the current user
 // @Success 200 {object} controllers.Response The Response object
-// @router /logout [post]
+// @router /logout [get,post]
 func (c *ApiController) Logout() {
 	user := c.GetSessionUsername()
 	util.LogInfo(c.Ctx, "API: [%s] logged out", user)
 
 	application := c.GetSessionApplication()
-	c.SetSessionUsername("")
-	c.SetSessionData(nil)
+	c.ClearUserSession()
 
 	if application == nil || application.Name == "app-built-in" || application.HomepageUrl == "" {
 		c.ResponseOk(user)
@@ -246,15 +261,14 @@ func (c *ApiController) Logout() {
 // @Success 200 {object} controllers.Response The Response object
 // @router /get-account [get]
 func (c *ApiController) GetAccount() {
-	userId, ok := c.RequireSignedIn()
+	user, ok := c.RequireSignedInUser()
 	if !ok {
 		return
 	}
 
-	user := object.GetUser(userId)
-	if user == nil {
-		c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", userId))
-		return
+	managedAccounts := c.Input().Get("managedAccounts")
+	if managedAccounts == "1" {
+		user = object.ExtendManagedAccountsWithUser(user)
 	}
 
 	organization := object.GetMaskedOrganization(object.GetOrganizationByUser(user))
@@ -269,6 +283,7 @@ func (c *ApiController) GetAccount() {
 	c.ServeJSON()
 }
 
+// GetUserinfo
 // UserInfo
 // @Title UserInfo
 // @Tag Account API
@@ -276,35 +291,50 @@ func (c *ApiController) GetAccount() {
 // @Success 200 {object} object.Userinfo The Response object
 // @router /userinfo [get]
 func (c *ApiController) GetUserinfo() {
-	userId, ok := c.RequireSignedIn()
+	user, ok := c.RequireSignedInUser()
 	if !ok {
 		return
 	}
+
 	scope, aud := c.GetSessionOidc()
 	host := c.Ctx.Request.Host
-	resp, err := object.GetUserInfo(userId, scope, aud, host)
+	userInfo := object.GetUserInfo(user, scope, aud, host)
+
+	c.Data["json"] = userInfo
+	c.ServeJSON()
+}
+
+// GetCaptcha ...
+// @Tag Login API
+// @Title GetCaptcha
+// @router /api/get-captcha [get]
+func (c *ApiController) GetCaptcha() {
+	applicationId := c.Input().Get("applicationId")
+	isCurrentProvider := c.Input().Get("isCurrentProvider")
+
+	captchaProvider, err := object.GetCaptchaProviderByApplication(applicationId, isCurrentProvider, c.GetAcceptLanguage())
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
 	}
-	c.Data["json"] = resp
-	c.ServeJSON()
-}
 
-// GetHumanCheck ...
-// @Tag Login API
-// @Title GetHumancheck
-// @router /api/get-human-check [get]
-func (c *ApiController) GetHumanCheck() {
-	c.Data["json"] = HumanCheck{Type: "none"}
-
-	provider := object.GetDefaultHumanCheckProvider()
-	if provider == nil {
-		id, img := object.GetCaptcha()
-		c.Data["json"] = HumanCheck{Type: "captcha", CaptchaId: id, CaptchaImage: img}
-		c.ServeJSON()
-		return
+	if captchaProvider != nil {
+		if captchaProvider.Type == "Default" {
+			id, img := object.GetCaptcha()
+			c.ResponseOk(Captcha{Type: captchaProvider.Type, CaptchaId: id, CaptchaImage: img})
+			return
+		} else if captchaProvider.Type != "" {
+			c.ResponseOk(Captcha{
+				Type:          captchaProvider.Type,
+				SubType:       captchaProvider.SubType,
+				ClientId:      captchaProvider.ClientId,
+				ClientSecret:  captchaProvider.ClientSecret,
+				ClientId2:     captchaProvider.ClientId2,
+				ClientSecret2: captchaProvider.ClientSecret2,
+			})
+			return
+		}
 	}
 
-	c.ServeJSON()
+	c.ResponseOk(Captcha{Type: "none"})
 }

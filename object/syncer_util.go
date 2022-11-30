@@ -173,7 +173,23 @@ func (syncer *Syncer) getOriginalUsersFromMap(results []map[string]string) []*Or
 		}
 
 		for _, tableColumn := range syncer.TableColumns {
-			syncer.setUserByKeyValue(originalUser, tableColumn.CasdoorName, result[tableColumn.Name])
+			tableColumnName := tableColumn.Name
+			if syncer.Type == "Keycloak" && syncer.DatabaseType == "postgres" {
+				tableColumnName = strings.ToLower(tableColumnName)
+			}
+
+			value := ""
+			if strings.Contains(tableColumnName, "+") {
+				names := strings.Split(tableColumnName, "+")
+				var values []string
+				for _, name := range names {
+					values = append(values, result[strings.Trim(name, " ")])
+				}
+				value = strings.Join(values, " ")
+			} else {
+				value = result[tableColumnName]
+			}
+			syncer.setUserByKeyValue(originalUser, tableColumn.CasdoorName, value)
 		}
 
 		if syncer.Type == "Keycloak" {
@@ -187,7 +203,7 @@ func (syncer *Syncer) getOriginalUsersFromMap(results []map[string]string) []*Or
 				originalUser.PasswordSalt = credential.Salt
 			}
 			// query and set signup application from user group table
-			sql = fmt.Sprintf("select name from keycloak_group where id = " +
+			sql = fmt.Sprintf("select name from keycloak_group where id = "+
 				"(select group_id as gid from user_group_membership where user_id = '%s')", originalUser.Id)
 			groupResult, _ := syncer.Adapter.Engine.QueryString(sql)
 			if len(groupResult) > 0 {
@@ -198,7 +214,12 @@ func (syncer *Syncer) getOriginalUsersFromMap(results []map[string]string) []*Or
 			tm := time.Unix(i/int64(1000), 0)
 			originalUser.CreatedTime = tm.Format("2006-01-02T15:04:05+08:00")
 			// enable
-			originalUser.IsForbidden = !(result["ENABLED"] == "\x01")
+			value, ok := result["ENABLED"]
+			if ok {
+				originalUser.IsForbidden = !util.ParseBool(value)
+			} else {
+				originalUser.IsForbidden = !util.ParseBool(result["enabled"])
+			}
 		}
 
 		users = append(users, originalUser)

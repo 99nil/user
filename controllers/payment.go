@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -67,6 +67,7 @@ func (c *ApiController) GetUserPayments() {
 	c.ResponseOk(payments)
 }
 
+// GetPayment
 // @Title GetPayment
 // @Tag Payment API
 // @Description get payment
@@ -80,6 +81,7 @@ func (c *ApiController) GetPayment() {
 	c.ServeJSON()
 }
 
+// UpdatePayment
 // @Title UpdatePayment
 // @Tag Payment API
 // @Description update payment
@@ -93,13 +95,15 @@ func (c *ApiController) UpdatePayment() {
 	var payment object.Payment
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &payment)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdatePayment(id, &payment))
 	c.ServeJSON()
 }
 
+// AddPayment
 // @Title AddPayment
 // @Tag Payment API
 // @Description add payment
@@ -110,13 +114,15 @@ func (c *ApiController) AddPayment() {
 	var payment object.Payment
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &payment)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddPayment(&payment))
 	c.ServeJSON()
 }
 
+// DeletePayment
 // @Title DeletePayment
 // @Tag Payment API
 // @Description delete payment
@@ -127,13 +133,15 @@ func (c *ApiController) DeletePayment() {
 	var payment object.Payment
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &payment)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeletePayment(&payment))
 	c.ServeJSON()
 }
 
+// NotifyPayment
 // @Title NotifyPayment
 // @Tag Payment API
 // @Description notify payment
@@ -152,13 +160,15 @@ func (c *ApiController) NotifyPayment() {
 	if ok {
 		_, err := c.Ctx.ResponseWriter.Write([]byte("success"))
 		if err != nil {
-			panic(err)
+			c.ResponseError(err.Error())
+			return
 		}
 	} else {
 		panic(fmt.Errorf("NotifyPayment() failed: %v", ok))
 	}
 }
 
+// InvoicePayment
 // @Title InvoicePayment
 // @Tag Payment API
 // @Description invoice payment

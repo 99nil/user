@@ -20,7 +20,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/astaxie/beego/context"
+	"github.com/beego/beego/context"
 	"github.com/casdoor/casdoor/authz"
 	"github.com/casdoor/casdoor/util"
 )
@@ -63,11 +63,16 @@ func getObject(ctx *context.Context) (string, string) {
 	if method == http.MethodGet {
 		// query == "?id=built-in/admin"
 		id := ctx.Input.Query("id")
-		if id == "" {
-			return "", ""
+		if id != "" {
+			return util.GetOwnerAndNameFromId(id)
 		}
 
-		return util.GetOwnerAndNameFromId(id)
+		owner := ctx.Input.Query("owner")
+		if owner != "" {
+			return owner, ""
+		}
+
+		return "", ""
 	} else {
 		body := ctx.Input.RequestBody
 
@@ -78,7 +83,7 @@ func getObject(ctx *context.Context) (string, string) {
 		var obj Object
 		err := json.Unmarshal(body, &obj)
 		if err != nil {
-			//panic(err)
+			// panic(err)
 			return "", ""
 		}
 
@@ -109,6 +114,10 @@ func getUrlPath(urlPath string) string {
 		return "/api/login/oauth"
 	}
 
+	if strings.HasPrefix(urlPath, "/api/webauthn") {
+		return "/api/webauthn"
+	}
+
 	return urlPath
 }
 
@@ -117,6 +126,10 @@ func AuthzFilter(ctx *context.Context) {
 	method := ctx.Request.Method
 	urlPath := getUrlPath(ctx.Request.URL.Path)
 	objOwner, objName := getObject(ctx)
+
+	if strings.HasPrefix(urlPath, "/api/notify-payment") {
+		urlPath = "/api/notify-payment"
+	}
 
 	isAllowed := authz.IsAllowed(subOwner, subName, method, urlPath, objOwner, objName)
 

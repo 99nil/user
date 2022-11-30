@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -49,6 +49,7 @@ func (c *ApiController) GetProducts() {
 	}
 }
 
+// GetProduct
 // @Title GetProduct
 // @Tag Product API
 // @Description get product
@@ -58,10 +59,14 @@ func (c *ApiController) GetProducts() {
 func (c *ApiController) GetProduct() {
 	id := c.Input().Get("id")
 
-	c.Data["json"] = object.GetProduct(id)
+	product := object.GetProduct(id)
+	object.ExtendProductWithProviders(product)
+
+	c.Data["json"] = product
 	c.ServeJSON()
 }
 
+// UpdateProduct
 // @Title UpdateProduct
 // @Tag Product API
 // @Description update product
@@ -75,13 +80,15 @@ func (c *ApiController) UpdateProduct() {
 	var product object.Product
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &product)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateProduct(id, &product))
 	c.ServeJSON()
 }
 
+// AddProduct
 // @Title AddProduct
 // @Tag Product API
 // @Description add product
@@ -92,13 +99,15 @@ func (c *ApiController) AddProduct() {
 	var product object.Product
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &product)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddProduct(&product))
 	c.ServeJSON()
 }
 
+// DeleteProduct
 // @Title DeleteProduct
 // @Tag Product API
 // @Description delete product
@@ -109,13 +118,15 @@ func (c *ApiController) DeleteProduct() {
 	var product object.Product
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &product)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteProduct(&product))
 	c.ServeJSON()
 }
 
+// BuyProduct
 // @Title BuyProduct
 // @Tag Product API
 // @Description buy product
@@ -130,13 +141,13 @@ func (c *ApiController) BuyProduct() {
 
 	userId := c.GetSessionUsername()
 	if userId == "" {
-		c.ResponseError("Please login first")
+		c.ResponseError(c.T("LoginErr.LoginFirst"))
 		return
 	}
 
 	user := object.GetUser(userId)
 	if user == nil {
-		c.ResponseError(fmt.Sprintf("The user: %s doesn't exist", userId))
+		c.ResponseError(fmt.Sprintf(c.T("UserErr.DoNotExist"), userId))
 		return
 	}
 

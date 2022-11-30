@@ -18,15 +18,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/casdoor/casdoor/conf"
+	"github.com/casdoor/casdoor/util"
 	"github.com/golang-jwt/jwt/v4"
 )
 
 type Claims struct {
 	*User
-	Nonce string `json:"nonce,omitempty"`
-	Tag   string `json:"tag,omitempty"`
-	Scope string `json:"scope,omitempty"`
+	TokenType string `json:"tokenType,omitempty"`
+	Nonce     string `json:"nonce,omitempty"`
+	Tag       string `json:"tag,omitempty"`
+	Scope     string `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -37,8 +38,9 @@ type UserShort struct {
 
 type ClaimsShort struct {
 	*UserShort
-	Nonce string `json:"nonce,omitempty"`
-	Scope string `json:"scope,omitempty"`
+	TokenType string `json:"tokenType,omitempty"`
+	Nonce     string `json:"nonce,omitempty"`
+	Scope     string `json:"scope,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -53,6 +55,7 @@ func getShortUser(user *User) *UserShort {
 func getShortClaims(claims Claims) ClaimsShort {
 	res := ClaimsShort{
 		UserShort:        getShortUser(claims.User),
+		TokenType:        claims.TokenType,
 		Nonce:            claims.Nonce,
 		Scope:            claims.Scope,
 		RegisteredClaims: claims.RegisteredClaims,
@@ -60,21 +63,21 @@ func getShortClaims(claims Claims) ClaimsShort {
 	return res
 }
 
-func generateJwtToken(application *Application, user *User, nonce string, scope string, host string) (string, string, error) {
+func generateJwtToken(application *Application, user *User, nonce string, scope string, host string) (string, string, string, error) {
 	nowTime := time.Now()
 	expireTime := nowTime.Add(time.Duration(application.ExpireInHours) * time.Hour)
 	refreshExpireTime := nowTime.Add(time.Duration(application.RefreshExpireInHours) * time.Hour)
 
 	user.Password = ""
-	origin := conf.GetConfigString("origin")
 	_, originBackend := getOriginFromHost(host)
-	if origin != "" {
-		originBackend = origin
-	}
+
+	name := util.GenerateId()
+	jti := fmt.Sprintf("%s/%s", application.Owner, name)
 
 	claims := Claims{
-		User:  user,
-		Nonce: nonce,
+		User:      user,
+		TokenType: "access-token",
+		Nonce:     nonce,
 		// FIXME: A workaround for custom claim by reusing `tag` in user info
 		Tag:   user.Tag,
 		Scope: scope,
@@ -85,7 +88,7 @@ func generateJwtToken(application *Application, user *User, nonce string, scope 
 			ExpiresAt: jwt.NewNumericDate(expireTime),
 			NotBefore: jwt.NewNumericDate(nowTime),
 			IssuedAt:  jwt.NewNumericDate(nowTime),
-			ID:        "",
+			ID:        jti,
 		},
 	}
 
@@ -98,10 +101,12 @@ func generateJwtToken(application *Application, user *User, nonce string, scope 
 
 		token = jwt.NewWithClaims(jwt.SigningMethodRS256, claimsShort)
 		claimsShort.ExpiresAt = jwt.NewNumericDate(refreshExpireTime)
+		claimsShort.TokenType = "refresh-token"
 		refreshToken = jwt.NewWithClaims(jwt.SigningMethodRS256, claimsShort)
 	} else {
 		token = jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 		claims.ExpiresAt = jwt.NewNumericDate(refreshExpireTime)
+		claims.TokenType = "refresh-token"
 		refreshToken = jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 	}
 
@@ -110,17 +115,17 @@ func generateJwtToken(application *Application, user *User, nonce string, scope 
 	// RSA private key
 	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(cert.PrivateKey))
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 
 	token.Header["kid"] = cert.Name
 	tokenString, err := token.SignedString(key)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
 	refreshTokenString, err := refreshToken.SignedString(key)
 
-	return tokenString, refreshTokenString, err
+	return tokenString, refreshTokenString, name, err
 }
 
 func ParseJwtToken(token string, cert *Cert) (*Claims, error) {
@@ -129,13 +134,13 @@ func ParseJwtToken(token string, cert *Cert) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
 
-		// RSA public key
-		publicKey, err := jwt.ParseRSAPublicKeyFromPEM([]byte(cert.PublicKey))
+		// RSA certificate
+		certificate, err := jwt.ParseRSAPublicKeyFromPEM([]byte(cert.Certificate))
 		if err != nil {
 			return nil, err
 		}
 
-		return publicKey, nil
+		return certificate, nil
 	})
 
 	if t != nil {

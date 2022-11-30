@@ -17,6 +17,7 @@ package object
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/casdoor/casdoor/util"
@@ -37,11 +38,11 @@ func TestSyncAvatarsFromGitHub(t *testing.T) {
 
 	users := GetGlobalUsers()
 	for _, user := range users {
-		if user.Github == "" {
+		if user.GitHub == "" {
 			continue
 		}
 
-		user.Avatar = fmt.Sprintf("https://avatars.githubusercontent.com/%s", user.Github)
+		user.Avatar = fmt.Sprintf("https://avatars.githubusercontent.com/%s", user.GitHub)
 		updateUserColumn("avatar", user)
 	}
 }
@@ -107,4 +108,25 @@ func TestGetUserByField(t *testing.T) {
 	} else {
 		t.Log("no user found")
 	}
+}
+
+func TestGetEmailsForUsers(t *testing.T) {
+	InitConfig()
+
+	emailMap := map[string]int{}
+	emails := []string{}
+	users := GetUsers("built-in")
+	for _, user := range users {
+		if user.Email == "" {
+			continue
+		}
+
+		if _, ok := emailMap[user.Email]; !ok {
+			emailMap[user.Email] = 1
+			emails = append(emails, user.Email)
+		}
+	}
+
+	text := strings.Join(emails, "\n")
+	println(text)
 }

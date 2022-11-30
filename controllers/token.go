@@ -18,7 +18,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/astaxie/beego/utils/pagination"
+	"github.com/beego/beego/utils/pagination"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -79,7 +79,8 @@ func (c *ApiController) UpdateToken() {
 	var token object.Token
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &token)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.UpdateToken(id, &token))
@@ -97,7 +98,8 @@ func (c *ApiController) AddToken() {
 	var token object.Token
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &token)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.AddToken(&token))
@@ -115,7 +117,8 @@ func (c *ApiController) DeleteToken() {
 	var token object.Token
 	err := json.Unmarshal(c.Ctx.Input.RequestBody, &token)
 	if err != nil {
-		panic(err)
+		c.ResponseError(err.Error())
+		return
 	}
 
 	c.Data["json"] = wrapActionResponse(object.DeleteToken(&token))
@@ -147,12 +150,12 @@ func (c *ApiController) GetOAuthCode() {
 	codeChallenge := c.Input().Get("code_challenge")
 
 	if challengeMethod != "S256" && challengeMethod != "null" && challengeMethod != "" {
-		c.ResponseError("Challenge method should be S256")
+		c.ResponseError(c.T("AuthErr.ChallengeMethodErr"))
 		return
 	}
 	host := c.Ctx.Request.Host
 
-	c.Data["json"] = object.GetOAuthCode(userId, clientId, responseType, redirectUri, scope, state, nonce, codeChallenge, host)
+	c.Data["json"] = object.GetOAuthCode(userId, clientId, responseType, redirectUri, scope, state, nonce, codeChallenge, host, c.GetAcceptLanguage())
 	c.ServeJSON()
 }
 
@@ -165,6 +168,8 @@ func (c *ApiController) GetOAuthCode() {
 // @Param   client_secret     query    string  true        "OAuth client secret"
 // @Param   code     query    string  true        "OAuth code"
 // @Success 200 {object} object.TokenWrapper The Response object
+// @Success 400 {object} object.TokenError The Response object
+// @Success 401 {object} object.TokenError The Response object
 // @router /login/oauth/access_token [post]
 func (c *ApiController) GetOAuthToken() {
 	grantType := c.Input().Get("grant_type")
@@ -199,7 +204,8 @@ func (c *ApiController) GetOAuthToken() {
 	}
 	host := c.Ctx.Request.Host
 
-	c.Data["json"] = object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, username, password, host, tag, avatar)
+	c.Data["json"] = object.GetOAuthToken(grantType, clientId, clientSecret, code, verifier, scope, username, password, host, tag, avatar, c.GetAcceptLanguage())
+	c.SetTokenErrorHttpStatus()
 	c.ServeJSON()
 }
 
@@ -213,6 +219,8 @@ func (c *ApiController) GetOAuthToken() {
 // @Param   client_id     query    string  true        "OAuth client id"
 // @Param   client_secret     query    string  false        "OAuth client secret"
 // @Success 200 {object} object.TokenWrapper The Response object
+// @Success 400 {object} object.TokenError The Response object
+// @Success 401 {object} object.TokenError The Response object
 // @router /login/oauth/refresh_token [post]
 func (c *ApiController) RefreshToken() {
 	grantType := c.Input().Get("grant_type")
@@ -235,6 +243,7 @@ func (c *ApiController) RefreshToken() {
 	}
 
 	c.Data["json"] = object.RefreshToken(grantType, refreshToken, scope, clientId, clientSecret, host)
+	c.SetTokenErrorHttpStatus()
 	c.ServeJSON()
 }
 
@@ -249,7 +258,7 @@ func (c *ApiController) RefreshToken() {
 // @router /login/oauth/logout [get]
 func (c *ApiController) TokenLogout() {
 	token := c.Input().Get("id_token_hint")
-	flag, application := object.DeleteTokenByAceessToken(token)
+	flag, application := object.DeleteTokenByAccessToken(token)
 	redirectUri := c.Input().Get("post_logout_redirect_uri")
 	state := c.Input().Get("state")
 	if application != nil && object.CheckRedirectUriValid(application, redirectUri) {
@@ -263,13 +272,16 @@ func (c *ApiController) TokenLogout() {
 // IntrospectToken
 // @Title IntrospectToken
 // @Description The introspection endpoint is an OAuth 2.0 endpoint that takes a
-//  parameter representing an OAuth 2.0 token and returns a JSON document
-//  representing the meta information surrounding the
-//  token, including whether this token is currently active.
-//  This endpoint only support Basic Authorization.
+// parameter representing an OAuth 2.0 token and returns a JSON document
+// representing the meta information surrounding the
+// token, including whether this token is currently active.
+// This endpoint only support Basic Authorization.
+//
 // @Param token formData string true "access_token's value or refresh_token's value"
 // @Param token_type_hint formData string true "the token type access_token or refresh_token"
 // @Success 200 {object} object.IntrospectionResponse The Response object
+// @Success 400 {object} object.TokenError The Response object
+// @Success 401 {object} object.TokenError The Response object
 // @router /login/oauth/introspect [post]
 func (c *ApiController) IntrospectToken() {
 	tokenValue := c.Input().Get("token")
@@ -278,13 +290,22 @@ func (c *ApiController) IntrospectToken() {
 		clientId = c.Input().Get("client_id")
 		clientSecret = c.Input().Get("client_secret")
 		if clientId == "" || clientSecret == "" {
-			c.ResponseError("empty clientId or clientSecret")
+			c.ResponseError(c.T("TokenErr.EmptyClientID"))
+			c.Data["json"] = &object.TokenError{
+				Error: object.InvalidRequest,
+			}
+			c.SetTokenErrorHttpStatus()
+			c.ServeJSON()
 			return
 		}
 	}
 	application := object.GetApplicationByClientId(clientId)
 	if application == nil || application.ClientSecret != clientSecret {
-		c.ResponseError("invalid application or wrong clientSecret")
+		c.ResponseError(c.T("TokenErr.InvalidAppOrWrongClientSecret"))
+		c.Data["json"] = &object.TokenError{
+			Error: object.InvalidClient,
+		}
+		c.SetTokenErrorHttpStatus()
 		return
 	}
 	token := object.GetTokenByTokenAndApplication(tokenValue, application.Name)

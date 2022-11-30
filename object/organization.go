@@ -15,10 +15,21 @@
 package object
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/casdoor/casdoor/cred"
+	"github.com/casdoor/casdoor/i18n"
 	"github.com/casdoor/casdoor/util"
 	"xorm.io/core"
 )
+
+type AccountItem struct {
+	Name       string `json:"name"`
+	Visible    bool   `json:"visible"`
+	ViewRule   string `json:"viewRule"`
+	ModifyRule string `json:"modifyRule"`
+}
 
 type Organization struct {
 	Owner       string `xorm:"varchar(100) notnull pk" json:"owner"`
@@ -32,10 +43,14 @@ type Organization struct {
 	PasswordSalt       string   `xorm:"varchar(100)" json:"passwordSalt"`
 	PhonePrefix        string   `xorm:"varchar(10)"  json:"phonePrefix"`
 	DefaultAvatar      string   `xorm:"varchar(100)" json:"defaultAvatar"`
+	DefaultApplication string   `xorm:"varchar(100)" json:"defaultApplication"`
 	Tags               []string `xorm:"mediumtext" json:"tags"`
+	Languages          []string `xorm:"varchar(255)" json:"languages"`
 	MasterPassword     string   `xorm:"varchar(100)" json:"masterPassword"`
 	EnableSoftDeletion bool     `json:"enableSoftDeletion"`
 	IsProfilePublic    bool     `json:"isProfilePublic"`
+
+	AccountItems []*AccountItem `xorm:"varchar(3000)" json:"accountItems"`
 }
 
 func GetOrganizationCount(owner, field, value string) int {
@@ -121,10 +136,9 @@ func UpdateOrganization(id string, organization *Organization) bool {
 	}
 
 	if name != organization.Name {
-		applications := GetApplicationsByOrganizationName("admin", name)
-		for _, application := range applications {
-			application.Organization = organization.Name
-			UpdateApplication(application.GetId(), application)
+		err := organizationChangeTrigger(name, organization.Name)
+		if err != nil {
+			return false
 		}
 	}
 
@@ -172,4 +186,216 @@ func DeleteOrganization(organization *Organization) bool {
 
 func GetOrganizationByUser(user *User) *Organization {
 	return getOrganization("admin", user.Owner)
+}
+
+func GetAccountItemByName(name string, organization *Organization) *AccountItem {
+	if organization == nil {
+		return nil
+	}
+	for _, accountItem := range organization.AccountItems {
+		if accountItem.Name == name {
+			return accountItem
+		}
+	}
+	return nil
+}
+
+func CheckAccountItemModifyRule(accountItem *AccountItem, user *User, lang string) (bool, string) {
+	switch accountItem.ModifyRule {
+	case "Admin":
+		if !(user.IsAdmin || user.IsGlobalAdmin) {
+			return false, fmt.Sprintf(i18n.Translate(lang, "OrgErr.OnlyAdmin"), accountItem.Name)
+		}
+	case "Immutable":
+		return false, fmt.Sprintf(i18n.Translate(lang, "OrgErr.Immutable"), accountItem.Name)
+	case "Self":
+		break
+	default:
+		return false, fmt.Sprintf(i18n.Translate(lang, "OrgErr.UnknownModifyRule"), accountItem.ModifyRule)
+	}
+	return true, ""
+}
+
+func GetDefaultApplication(id string) (*Application, error) {
+	organization := GetOrganization(id)
+	if organization == nil {
+		return nil, fmt.Errorf("The organization: %s does not exist", id)
+	}
+
+	if organization.DefaultApplication != "" {
+		defaultApplication := getApplication("admin", organization.DefaultApplication)
+		if defaultApplication == nil {
+			return nil, fmt.Errorf("The default application: %s does not exist", organization.DefaultApplication)
+		} else {
+			return defaultApplication, nil
+		}
+	}
+
+	applications := []*Application{}
+	err := adapter.Engine.Asc("created_time").Find(&applications, &Application{Organization: organization.Name})
+	if err != nil {
+		panic(err)
+	}
+
+	if len(applications) == 0 {
+		return nil, fmt.Errorf("The application does not exist")
+	}
+
+	defaultApplication := applications[0]
+	for _, application := range applications {
+		if application.EnableSignUp {
+			defaultApplication = application
+			break
+		}
+	}
+
+	extendApplicationWithProviders(defaultApplication)
+	extendApplicationWithOrg(defaultApplication)
+
+	return defaultApplication, nil
+}
+
+func organizationChangeTrigger(oldName string, newName string) error {
+	session := adapter.Engine.NewSession()
+	defer session.Close()
+
+	err := session.Begin()
+	if err != nil {
+		return err
+	}
+
+	application := new(Application)
+	application.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(application)
+	if err != nil {
+		return err
+	}
+
+	user := new(User)
+	user.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(user)
+	if err != nil {
+		return err
+	}
+
+	role := new(Role)
+	_, err = adapter.Engine.Where("owner=?", oldName).Get(role)
+	if err != nil {
+		return err
+	}
+	for i, u := range role.Users {
+		// u = organization/username
+		split := strings.Split(u, "/")
+		if split[0] == oldName {
+			split[0] = newName
+			role.Users[i] = split[0] + "/" + split[1]
+		}
+	}
+	for i, u := range role.Roles {
+		// u = organization/username
+		split := strings.Split(u, "/")
+		if split[0] == oldName {
+			split[0] = newName
+			role.Roles[i] = split[0] + "/" + split[1]
+		}
+	}
+	role.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(role)
+	if err != nil {
+		return err
+	}
+
+	permission := new(Permission)
+	_, err = adapter.Engine.Where("owner=?", oldName).Get(permission)
+	if err != nil {
+		return err
+	}
+	for i, u := range permission.Users {
+		// u = organization/username
+		split := strings.Split(u, "/")
+		if split[0] == oldName {
+			split[0] = newName
+			permission.Users[i] = split[0] + "/" + split[1]
+		}
+	}
+	for i, u := range permission.Roles {
+		// u = organization/username
+		split := strings.Split(u, "/")
+		if split[0] == oldName {
+			split[0] = newName
+			permission.Roles[i] = split[0] + "/" + split[1]
+		}
+	}
+	permission.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(permission)
+	if err != nil {
+		return err
+	}
+
+	casbinAdapter := new(CasbinAdapter)
+	casbinAdapter.Owner = newName
+	casbinAdapter.Organization = newName
+	_, err = session.Where("owner=?", oldName).Update(casbinAdapter)
+	if err != nil {
+		return err
+	}
+
+	ldap := new(Ldap)
+	ldap.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(ldap)
+	if err != nil {
+		return err
+	}
+
+	model := new(Model)
+	model.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(model)
+	if err != nil {
+		return err
+	}
+
+	payment := new(Payment)
+	payment.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(payment)
+	if err != nil {
+		return err
+	}
+
+	record := new(Record)
+	record.Owner = newName
+	record.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(record)
+	if err != nil {
+		return err
+	}
+
+	resource := new(Resource)
+	resource.Owner = newName
+	_, err = session.Where("owner=?", oldName).Update(resource)
+	if err != nil {
+		return err
+	}
+
+	syncer := new(Syncer)
+	syncer.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(syncer)
+	if err != nil {
+		return err
+	}
+
+	token := new(Token)
+	token.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(token)
+	if err != nil {
+		return err
+	}
+
+	webhook := new(Webhook)
+	webhook.Organization = newName
+	_, err = session.Where("organization=?", oldName).Update(webhook)
+	if err != nil {
+		return err
+	}
+
+	return session.Commit()
 }

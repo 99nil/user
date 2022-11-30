@@ -21,6 +21,8 @@ import * as Setting from "../Setting";
 import i18next from "i18next";
 import AffiliationSelect from "../common/AffiliationSelect";
 import OAuthWidget from "../common/OAuthWidget";
+import SelectRegionBox from "../SelectRegionBox";
+import {withRouter} from "react-router-dom";
 
 class PromptPage extends React.Component {
   constructor(props) {
@@ -81,13 +83,23 @@ class PromptPage extends React.Component {
   updateUserField(key, value) {
     value = this.parseUserField(key, value);
 
-    let user = this.state.user;
+    const user = this.state.user;
     user[key] = value;
     this.setState({
       user: user,
     });
 
     this.submitUserEdit(false);
+  }
+
+  updateUserFieldWithoutSubmit(key, value) {
+    value = this.parseUserField(key, value);
+
+    const user = this.state.user;
+    user[key] = value;
+    this.setState({
+      user: user,
+    });
   }
 
   renderAffiliation(application) {
@@ -100,8 +112,8 @@ class PromptPage extends React.Component {
     }
 
     return (
-      <AffiliationSelect labelSpan={6} application={application} user={this.state.user} onUpdateUserField={(key, value) => { return this.updateUserField(key, value)}} />
-    )
+      <AffiliationSelect labelSpan={6} application={application} user={this.state.user} onUpdateUserField={(key, value) => {return this.updateUserField(key, value);}} />
+    );
   }
 
   unlinked() {
@@ -110,19 +122,44 @@ class PromptPage extends React.Component {
 
   renderContent(application) {
     return (
-      <div style={{width: '400px'}}>
+      <div style={{width: "400px"}}>
         {
           this.renderAffiliation(application)
         }
         <div>
           {
             (application === null || this.state.user === null) ? null : (
-              application?.providers.filter(providerItem => Setting.isProviderPrompted(providerItem)).map((providerItem, index) => <OAuthWidget key={providerItem.name} labelSpan={6} user={this.state.user} application={application} providerItem={providerItem} onUnlinked={() => { return this.unlinked()}} />)
+              application?.providers.filter(providerItem => Setting.isProviderPrompted(providerItem)).map((providerItem, index) => <OAuthWidget key={providerItem.name} labelSpan={6} user={this.state.user} application={application} providerItem={providerItem} account={this.props.account} onUnlinked={() => {return this.unlinked();}} />)
+            )
+          }
+          {
+            (application === null || this.state.user === null) ? null : (
+              application?.signupItems.filter(signupItem => Setting.isSignupItemPrompted(signupItem)).map((signupItem, index) => {
+                if (signupItem.name !== "Country/Region") {
+                  return null;
+                }
+                return (
+                  <Row key={signupItem.name} style={{marginTop: "20px", justifyContent: "space-between"}} >
+                    <Col style={{marginTop: "5px"}} >
+                      <span style={{marginLeft: "5px"}}>
+                        {
+                          i18next.t("user:Country/Region")
+                        }:
+                      </span>
+                    </Col>
+                    <Col >
+                      <SelectRegionBox defaultValue={this.state.user.region} onChange={(value) => {
+                        this.updateUserFieldWithoutSubmit("region", value);
+                      }} />
+                    </Col>
+                  </Row>
+                );
+              })
             )
           }
         </div>
       </div>
-    )
+    );
   }
 
   onUpdateAccount(account) {
@@ -144,17 +181,17 @@ class PromptPage extends React.Component {
   logout() {
     AuthBackend.logout()
       .then((res) => {
-        if (res.status === 'ok') {
+        if (res.status === "ok") {
           this.onUpdateAccount(null);
 
           let redirectUrl = this.getRedirectUrl();
           if (redirectUrl === "") {
-            redirectUrl = res.data2
+            redirectUrl = res.data2;
           }
-          if (redirectUrl !== "") {
+          if (redirectUrl !== "" && redirectUrl !== null) {
             Setting.goToLink(redirectUrl);
           } else {
-            Setting.goToLogin(this, this.getApplicationObj());
+            Setting.redirectToLoginPage(this.getApplicationObj(), this.props.history);
           }
         } else {
           Setting.showMessage("error", `Failed to log out: ${res.msg}`);
@@ -163,12 +200,12 @@ class PromptPage extends React.Component {
   }
 
   submitUserEdit(isFinal) {
-    let user = Setting.deepCopy(this.state.user);
+    const user = Setting.deepCopy(this.state.user);
     UserBackend.updateUser(this.state.user.owner, this.state.user.name, user)
       .then((res) => {
         if (res.msg === "") {
           if (isFinal) {
-            Setting.showMessage("success", `Successfully saved`);
+            Setting.showMessage("success", "Successfully saved");
 
             this.logout();
           }
@@ -195,18 +232,18 @@ class PromptPage extends React.Component {
       return (
         <Result
           status="error"
-          title="Sign Up Error"
-          subTitle={"You are unexpected to see this prompt page"}
+          title={i18next.t("application:Sign Up Error")}
+          subTitle={i18next.t("application:You are unexpected to see this prompt page")}
           extra={[
-            <Button type="primary" key="signin" onClick={() => {
-              Setting.goToLogin(this, application);
-            }}>
-              Sign In
-            </Button>
+            <Button type="primary" key="signin" onClick={() => Setting.redirectToLoginPage(application, this.props.history)}>
+              {
+                i18next.t("login:Sign In")
+              }
+            </Button>,
           ]}
         >
         </Result>
-      )
+      );
     }
 
     return (
@@ -227,13 +264,13 @@ class PromptPage extends React.Component {
               </Col>
             </Row>
             <div style={{marginTop: "50px"}}>
-              <Button disabled={!Setting.isPromptAnswered(this.state.user, application)} type="primary" size="large" onClick={() => {this.submitUserEdit(true)}}>{i18next.t("code:Submit and complete")}</Button>
+              <Button disabled={!Setting.isPromptAnswered(this.state.user, application)} type="primary" size="large" onClick={() => {this.submitUserEdit(true);}}>{i18next.t("code:Submit and complete")}</Button>
             </div>
           </div>
         </Col>
       </Row>
-    )
+    );
   }
 }
 
-export default PromptPage;
+export default withRouter(PromptPage);

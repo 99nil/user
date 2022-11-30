@@ -1,4 +1,4 @@
-// Copyright 2021 The Casdoor Authors. All Rights Reserved.
+// Copyright 2022 The Casdoor Authors. All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package object
+package util
 
-type SignupItem struct {
-	Name     string `json:"name"`
-	Visible  bool   `json:"visible"`
-	Required bool   `json:"required"`
-	Prompted bool   `json:"prompted"`
-	Rule     string `json:"rule"`
+import xormadapter "github.com/casbin/xorm-adapter/v3"
+
+func CasbinToSlice(casbinRule xormadapter.CasbinRule) []string {
+	s := []string{
+		casbinRule.V0,
+		casbinRule.V1,
+		casbinRule.V2,
+		casbinRule.V3,
+		casbinRule.V4,
+		casbinRule.V5,
+	}
+	return s
 }

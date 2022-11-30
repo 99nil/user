@@ -24,7 +24,6 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sort"
@@ -56,12 +55,12 @@ func (idp *AlipayIdProvider) SetHttpClient(client *http.Client) {
 
 // getConfig return a point of Config, which describes a typical 3-legged OAuth2 flow
 func (idp *AlipayIdProvider) getConfig(clientId string, clientSecret string, redirectUrl string) *oauth2.Config {
-	var endpoint = oauth2.Endpoint{
+	endpoint := oauth2.Endpoint{
 		AuthURL:  "https://openauth.alipay.com/oauth2/publicAppAuthorize.htm",
 		TokenURL: "https://openapi.alipay.com/gateway.do",
 	}
 
-	var config = &oauth2.Config{
+	config := &oauth2.Config{
 		Scopes:       []string{"", ""},
 		Endpoint:     endpoint,
 		ClientID:     clientId,
@@ -205,8 +204,7 @@ func (idp *AlipayIdProvider) postWithBody(body interface{}, targetUrl string) ([
 	if err != nil {
 		return nil, err
 	}
-	data, err := ioutil.ReadAll(resp.Body)
-
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
 	}

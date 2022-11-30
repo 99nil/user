@@ -30,12 +30,12 @@ func TestProduct(t *testing.T) {
 	product := GetProduct("admin/product_123")
 	provider := getProvider(product.Owner, "provider_pay_alipay")
 	cert := getCert(product.Owner, "cert-pay-alipay")
-	pProvider := pp.GetPaymentProvider(provider.Type, provider.ClientId, provider.ClientSecret, provider.Host, cert.PublicKey, cert.PrivateKey, cert.AuthorityPublicKey, cert.AuthorityRootPublicKey)
+	pProvider := pp.GetPaymentProvider(provider.Type, provider.ClientId, provider.ClientSecret, provider.Host, cert.Certificate, cert.PrivateKey, cert.AuthorityPublicKey, cert.AuthorityRootPublicKey)
 
-	paymentId := util.GenerateTimeId()
+	paymentName := util.GenerateTimeId()
 	returnUrl := ""
 	notifyUrl := ""
-	payUrl, err := pProvider.Pay(product.DisplayName, product.Name, provider.Name, paymentId, product.Price, returnUrl, notifyUrl)
+	payUrl, err := pProvider.Pay(provider.Name, product.Name, "alice", paymentName, product.DisplayName, product.Price, returnUrl, notifyUrl)
 	if err != nil {
 		panic(err)
 	}

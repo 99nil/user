@@ -13,7 +13,7 @@
 // limitations under the License.
 
 import React from "react";
-import {Button, Col, Row, Table, Popconfirm} from "antd";
+import {Button, Col, Popconfirm, Row, Table} from "antd";
 import * as Setting from "./Setting";
 import * as LdapBackend from "./backend/LdapBackend";
 import i18next from "i18next";
@@ -31,23 +31,23 @@ class LdapSyncPage extends React.Component {
   }
 
   UNSAFE_componentWillMount() {
-    this.getLdap()
+    this.getLdap();
   }
 
   syncUsers() {
-    let selectedUsers = this.state.selectedUsers;
+    const selectedUsers = this.state.selectedUsers;
     if (selectedUsers === null || selectedUsers.length === 0) {
       Setting.showMessage("error", "Please select al least 1 user first");
-      return
+      return;
     }
 
     LdapBackend.syncUsers(this.state.ldap.owner, this.state.ldap.id, selectedUsers)
       .then((res => {
         if (res.status === "ok") {
-          let exist = res.data.exist;
-          let failed = res.data.failed;
-          let existUser = [];
-          let failedUser = [];
+          const exist = res.data.exist;
+          const failed = res.data.failed;
+          const existUser = [];
+          const failedUser = [];
 
           if ((!exist || exist.length === 0) && (!failed || failed.length === 0)) {
             Setting.goToLink(`/organizations/${this.state.ldap.owner}/users`);
@@ -62,14 +62,14 @@ class LdapSyncPage extends React.Component {
             if (failed && failed.length > 0) {
               failed.forEach(elem => {
                 failedUser.push(elem.cn);
-              })
-              Setting.showMessage("error", `Sync [${failedUser}] failed`)
+              });
+              Setting.showMessage("error", `Sync [${failedUser}] failed`);
             }
           }
         } else {
           Setting.showMessage("error", res.msg);
         }
-      }))
+      }));
   }
 
   getLdap() {
@@ -79,14 +79,13 @@ class LdapSyncPage extends React.Component {
           this.setState((prevState) => {
             prevState.ldap = res.data;
             return prevState;
-          })
+          });
           this.getLdapUser(res.data);
         } else {
           Setting.showMessage("error", res.msg);
         }
       });
   }
-
 
   getLdapUser(ldap) {
     LdapBackend.getLdapUser(ldap)
@@ -95,36 +94,36 @@ class LdapSyncPage extends React.Component {
           this.setState((prevState) => {
             prevState.users = res.data.users;
             return prevState;
-          })
+          });
           this.getExistUsers(ldap.owner, res.data.users);
         } else {
           Setting.showMessage("error", res.msg);
         }
-      })
+      });
   }
 
   getExistUsers(owner, users) {
-    let uuidArray = [];
+    const uuidArray = [];
     users.forEach(elem => {
       uuidArray.push(elem.uuid);
-    })
+    });
     LdapBackend.checkLdapUsersExist(owner, uuidArray)
       .then((res) => {
         if (res.status === "ok") {
           this.setState(prevState => {
             prevState.existUuids = res.data?.length > 0 ? res.data : [];
             return prevState;
-          })
+          });
         }
-      })
+      });
   }
 
   buildValArray(data, key) {
-    let valTypesArray = [];
+    const valTypesArray = [];
 
     if (data !== null && data.length > 0) {
       data.forEach(elem => {
-        let val = elem[key];
+        const val = elem[key];
         if (!valTypesArray.includes(val)) {
           valTypesArray.push(val);
         }
@@ -134,10 +133,10 @@ class LdapSyncPage extends React.Component {
   }
 
   buildFilter(data, key) {
-    let filterArray = [];
+    const filterArray = [];
 
     if (data !== null && data.length > 0) {
-      let valArray = this.buildValArray(data, key)
+      const valArray = this.buildValArray(data, key);
       valArray.forEach(elem => {
         filterArray.push({
           text: elem,
@@ -163,7 +162,7 @@ class LdapSyncPage extends React.Component {
         width: "200px",
         sorter: (a, b) => a.uidNumber.localeCompare(b.uidNumber),
         render: (text, record, index) => {
-          return `${text} / ${record.uid}`
+          return `${text} / ${record.uid}`;
         },
       },
       {
@@ -202,7 +201,7 @@ class LdapSyncPage extends React.Component {
         this.setState(prevState => {
           prevState.selectedUsers = selectedRows;
           return prevState;
-        })
+        });
       },
       getCheckboxProps: record => ({
         disabled: this.state.existUuids.indexOf(record.uuid) !== -1,
@@ -212,20 +211,20 @@ class LdapSyncPage extends React.Component {
     return (
       <div>
         <Table rowSelection={rowSelection} columns={columns} dataSource={users} rowKey="uuid" bordered
-               pagination={{defaultPageSize: 10, showQuickJumper: true, showSizeChanger: true}}
-               title={() => (
-                 <div>
-                   <span>{this.state.ldap?.serverName}</span>
-                   <Popconfirm placement={"right"}
-                               title={`Please confirm to sync selected users`}
-                               onConfirm={() => this.syncUsers()}
-                   >
-                     <Button type="primary" size="small"
-                             style={{marginLeft: "10px"}}>{i18next.t("ldap:Sync")}</Button>
-                   </Popconfirm>
-                 </div>
-               )}
-               loading={users === null}
+          pagination={{defaultPageSize: 10, showQuickJumper: true, showSizeChanger: true}}
+          title={() => (
+            <div>
+              <span>{this.state.ldap?.serverName}</span>
+              <Popconfirm placement={"right"}
+                title={"Please confirm to sync selected users"}
+                onConfirm={() => this.syncUsers()}
+              >
+                <Button type="primary" size="small"
+                  style={{marginLeft: "10px"}}>{i18next.t("ldap:Sync")}</Button>
+              </Popconfirm>
+            </div>
+          )}
+          loading={users === null}
         />
       </div>
     );

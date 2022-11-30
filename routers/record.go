@@ -17,7 +17,7 @@ package routers
 import (
 	"fmt"
 
-	"github.com/astaxie/beego/context"
+	"github.com/beego/beego/context"
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
@@ -65,5 +65,5 @@ func RecordMessage(ctx *context.Context) {
 		record.Organization, record.User = util.GetOwnerAndNameFromId(userId)
 	}
 
-	util.SafeGoroutine(func() {object.AddRecord(record)})
+	util.SafeGoroutine(func() { object.AddRecord(record) })
 }

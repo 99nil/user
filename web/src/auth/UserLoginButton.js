@@ -20,13 +20,13 @@ function Icon({width = 24, height = 24, color}) {
 }
 
 const config = {
-  text: "Sign in with Casdoor",
+  text: "Sign in",
   icon: Icon,
   iconFormat: name => `fa fa-${name}`,
   style: {background: "#ffffff", color: "#000000"},
   activeStyle: {background: "#ededee"},
 };
 
-const CasdoorLoginButton = createButton(config);
+const UserLoginButton = createButton(config);
 
-export default CasdoorLoginButton;
+export default UserLoginButton;

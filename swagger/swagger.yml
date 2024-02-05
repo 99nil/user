@@ -1,10 +1,8 @@
 swagger: "2.0"
 info:
-  title: Casdoor RESTful API
-  description: Swagger Docs of Casdoor Backend API
+  title: 99nil User RESTful API
+  description: Swagger Docs of 99nil User API
   version: 1.376.1
-  contact:
-    email: casbin@googlegroups.com
 basePath: /
 schemes:
 - https
@@ -504,7 +502,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for 99nil User frontend to call, it is for 99nil User SDKs.
       operationId: ApiController.SendEmail
       parameters:
       - in: query
@@ -532,7 +530,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for 99nil User frontend to call, it is for 99nil User SDKs.
       operationId: ApiController.SendNotification
       parameters:
       - in: body
@@ -550,7 +548,7 @@ paths:
     post:
       tags:
       - Service API
-      description: This API is not for Casdoor frontend to call, it is for Casdoor SDKs.
+      description: This API is not for 99nil User frontend to call, it is for 99nil User SDKs.
       operationId: ApiController.SendSms
       parameters:
       - in: query
@@ -2240,7 +2238,7 @@ paths:
     get:
       tags:
       - System API
-      description: get version info like Casdoor release version and commit ID
+      description: get version info like 99nil User release version and commit ID
       operationId: ApiController.GetVersionInfo
       responses:
         "200":
@@ -3310,7 +3308,7 @@ paths:
           description: '"The Response object"'
           schema:
             $ref: '#/definitions/controllers.Response'
-  /apiapi/login/oauth/access_token:
+  /api/login/oauth/access_token:
     post:
       tags:
       - Token API

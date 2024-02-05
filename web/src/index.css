@@ -27,11 +27,11 @@ code {
 }
 
 .logo {
-  background: url("https://cdn.casbin.org/img/casdoor-logo_1185x256.png");
-  background-size: 130px, 27px !important;
-  width: 130px;
-  height: 27px;
-  margin: 17px 0 16px 15px;
+  background: url("https://raw.githubusercontent.com/99nil/material/main/logo/logo.png");
+  background-size: 38px, 38px !important;
+  width: 38px;
+  height: 38px;
+  margin: 17px 0 16px 30px;
   float: left;
 }
 

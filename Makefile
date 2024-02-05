@@ -1,10 +1,10 @@
 
 # Image URL to use all building/pushing image targets
-REGISTRY ?= casbin
-IMG ?= casdoor
+REGISTRY ?= 99nil
+IMG ?= user
 IMG_TAG ?=$(shell git --no-pager log -1 --format="%ad" --date=format:"%Y%m%d")-$(shell git describe --tags --always --dirty --abbrev=6)
-NAMESPACE ?= casdoor
-APP ?= casdoor
+NAMESPACE ?= 99nil
+APP ?= user
 HOST ?= test.com
 
 

@@ -3,60 +3,31 @@ WORKDIR /web
 COPY ./web .
 RUN yarn install --frozen-lockfile --network-timeout 1000000 && yarn run build
 
-
-FROM golang:1.20.12 AS BACK
-WORKDIR /go/src/casdoor
+FROM golang:1.21 AS BACK
+WORKDIR /work
 COPY . .
 RUN ./build.sh
 RUN go test -v -run TestGetVersionInfo ./util/system_test.go ./util/system.go > version_info.txt
 
-FROM alpine:latest AS STANDARD
-LABEL MAINTAINER="https://casdoor.org/"
-ARG USER=casdoor
+FROM alpine:3.18 as alpine
+RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.ustc.edu.cn/g' /etc/apk/repositories && \
+    apk update && \
+    apk add -U --no-cache ca-certificates tzdata
 
-RUN sed -i 's/https/http/' /etc/apk/repositories
-RUN apk add --update sudo
-RUN apk add curl
-RUN apk add ca-certificates && update-ca-certificates
+FROM alpine:3.18
+LABEL MAINTAINER="https://github.com/99nil"
+ENV TZ="Asia/Shanghai"
 
-RUN adduser -D $USER -u 1000 \
-    && echo "$USER ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/$USER \
-    && chmod 0440 /etc/sudoers.d/$USER \
-    && mkdir logs \
-    && chown -R $USER:$USER logs
+WORKDIR /work
 
-USER 1000
-WORKDIR /
-COPY --from=BACK --chown=$USER:$USER /go/src/casdoor/server ./server
-COPY --from=BACK --chown=$USER:$USER /go/src/casdoor/swagger ./swagger
-COPY --from=BACK --chown=$USER:$USER /go/src/casdoor/conf/app.conf ./conf/app.conf
-COPY --from=BACK --chown=$USER:$USER /go/src/casdoor/version_info.txt ./go/src/casdoor/version_info.txt
-COPY --from=FRONT --chown=$USER:$USER /web/build ./web/build
+COPY --from=alpine /usr/share/zoneinfo /usr/share/zoneinfo
+COPY --from=alpine /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=BACK /work/server /usr/local/bin/server
+COPY --from=BACK /work/conf/app.conf /work/conf/app.conf
+COPY --from=BACK /work/swagger /work/swagger
+COPY --from=BACK /work/version_info.txt /work/version_info.txt
+COPY --from=FRONT /web/build /work/web/build
 
-ENTRYPOINT ["/server"]
+RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
-
-FROM debian:latest AS db
-RUN apt update \
-    && apt install -y \
-        mariadb-server \
-        mariadb-client \
-    && rm -rf /var/lib/apt/lists/*
-
-
-FROM db AS ALLINONE
-LABEL MAINTAINER="https://casdoor.org/"
-
-RUN apt update
-RUN apt install -y ca-certificates && update-ca-certificates
-
-WORKDIR /
-COPY --from=BACK /go/src/casdoor/server ./server
-COPY --from=BACK /go/src/casdoor/swagger ./swagger
-COPY --from=BACK /go/src/casdoor/docker-entrypoint.sh /docker-entrypoint.sh
-COPY --from=BACK /go/src/casdoor/conf/app.conf ./conf/app.conf
-COPY --from=BACK /go/src/casdoor/version_info.txt ./go/src/casdoor/version_info.txt
-COPY --from=FRONT /web/build ./web/build
-
-ENTRYPOINT ["/bin/bash"]
-CMD ["/docker-entrypoint.sh"]
+CMD  ["server"]

@@ -5070,7 +5070,7 @@
                 }
             }
         },
-        "/apiapi/login/oauth/access_token": {
+        "/api/login/oauth/access_token": {
             "post": {
                 "tags": [
                     "Token API"

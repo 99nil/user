@@ -479,8 +479,8 @@ class ProviderEditPage extends React.Component {
                 this.updateProviderField("host", "smtp.example.com");
                 this.updateProviderField("port", 465);
                 this.updateProviderField("disableSsl", false);
-                this.updateProviderField("title", "Casdoor Verification Code");
-                this.updateProviderField("content", "You have requested a verification code at Casdoor. Here is your code: %s, please enter in 5 minutes.");
+                this.updateProviderField("title", "Verification Code");
+                this.updateProviderField("content", "You have requested a verification code. Here is your code: %s, please enter in 5 minutes.");
                 this.updateProviderField("receiver", this.props.account.email);
               } else if (value === "SMS") {
                 this.updateProviderField("type", "Twilio SMS");
@@ -526,10 +526,10 @@ class ProviderEditPage extends React.Component {
               if (value === "Local File System") {
                 this.updateProviderField("domain", Setting.getFullServerUrl());
               } else if (value === "Custom" && this.state.provider.category === "OAuth") {
-                this.updateProviderField("customAuthUrl", "https://door.casdoor.com/login/oauth/authorize");
+                this.updateProviderField("customAuthUrl", "http://localhost/login/oauth/authorize");
                 this.updateProviderField("scopes", "openid profile email");
-                this.updateProviderField("customTokenUrl", "https://door.casdoor.com/api/login/oauth/access_token");
-                this.updateProviderField("customUserInfoUrl", "https://door.casdoor.com/api/userinfo");
+                this.updateProviderField("customTokenUrl", "http://localhost/api/login/oauth/access_token");
+                this.updateProviderField("customUserInfoUrl", "http://localhost/api/userinfo");
               } else if (value === "Custom HTTP SMS") {
                 this.updateProviderField("endpoint", "https://example.com/send-custom-http-sms");
                 this.updateProviderField("method", "GET");

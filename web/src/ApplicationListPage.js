@@ -37,7 +37,7 @@ class ApplicationListPage extends BaseListPage {
       organization: organizationName,
       createdTime: moment().format(),
       displayName: `New Application - ${randomName}`,
-      logo: `${Setting.StaticBaseUrl}/img/casdoor-logo_1185x256.png`,
+      logo: "https://raw.githubusercontent.com/99nil/material/main/logo/logo.png",
       enablePassword: true,
       enableSignUp: true,
       enableSigninSession: false,

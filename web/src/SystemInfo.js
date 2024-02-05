@@ -129,7 +129,7 @@ class SystemInfo extends React.Component {
       <PrometheusInfoTable prometheusInfo={this.state.prometheusInfo} table={"latency"} />;
     const throughputUi = this.state.prometheusInfo.apiThroughput === null || this.state.prometheusInfo.apiThroughput?.length <= 0 ? <Spin size="large" /> :
       <PrometheusInfoTable prometheusInfo={this.state.prometheusInfo} table={"throughput"} />;
-    const link = this.state.versionInfo?.version !== "" ? `https://github.com/casdoor/casdoor/releases/tag/${this.state.versionInfo?.version}` : "";
+    const link = "";
     let versionText = this.state.versionInfo?.version !== "" ? this.state.versionInfo?.version : i18next.t("system:Unknown version");
     if (this.state.versionInfo?.commitOffset > 0) {
       versionText += ` (ahead+${this.state.versionInfo?.commitOffset})`;
@@ -164,15 +164,11 @@ class SystemInfo extends React.Component {
                 </Col>
               </Row>
               <Divider />
-              <Card id="about-card" title={i18next.t("system:About Casdoor")} bordered={true} style={{textAlign: "center"}}>
+              <Card id="about-card" title={i18next.t("system:About Platform")} bordered={true} style={{textAlign: "center"}}>
                 <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-                GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/casdoor/casdoor">Casdoor</a>
+                GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/99nil">99nil</a>
                 <br />
                 {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
-                <br />
-                {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org">https://casdoor.org</a>
-                <br />
-                {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org/#:~:text=Casdoor%20API-,Community,-GitHub">Get in Touch!</a>
               </Card>
             </Col>
             <Col span={6}></Col>
@@ -204,15 +200,11 @@ class SystemInfo extends React.Component {
             </Card>
           </Col>
           <Col span={24}>
-            <Card title={i18next.t("system:About Casdoor")} bordered={true} style={{textAlign: "center"}}>
+            <Card title={i18next.t("system:About Platform")} bordered={true} style={{textAlign: "center"}}>
               <div>{i18next.t("system:An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS")}</div>
-              GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/casdoor/casdoor">Casdoor</a>
+              GitHub: <a target="_blank" rel="noreferrer" href="https://github.com/99nil">99nil</a>
               <br />
-              {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>
-              <br />
-              {i18next.t("system:Official website")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org">https://casdoor.org</a>
-              <br />
-              {i18next.t("system:Community")}: <a target="_blank" rel="noreferrer" href="https://casdoor.org/#:~:text=Casdoor%20API-,Community,-GitHub">Get in Touch!</a>
+              {i18next.t("system:Version")}: <a target="_blank" rel="noreferrer" href={link}>{versionText}</a>ke
             </Card>
           </Col>
         </Row>

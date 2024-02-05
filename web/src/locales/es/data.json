@@ -929,7 +929,7 @@
   "system": {
     "API Latency": "Retraso API",
     "API Throughput": "Rendimiento API",
-    "About Casdoor": "Sobre Casdoor",
+    "About Platform": "Sobre Platform",
     "An Identity and Access Management (IAM) / Single-Sign-On (SSO) platform with web UI supporting OAuth 2.0, OIDC, SAML and CAS": "Una plataforma de Gestión de Identidades y Accesos (IAM) / Single-Sign-On (SSO) con una interfaz web que admite OAuth 2.0, OIDC, SAML y CAS",
     "CPU Usage": "Uso de la CPU",
     "Community": "Comunidad",

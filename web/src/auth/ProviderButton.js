@@ -29,7 +29,7 @@ import WeComLoginButton from "./WeComLoginButton";
 import LarkLoginButton from "./LarkLoginButton";
 import GitLabLoginButton from "./GitLabLoginButton";
 import AdfsLoginButton from "./AdfsLoginButton";
-import CasdoorLoginButton from "./CasdoorLoginButton";
+import UserLoginButton from "./UserLoginButton";
 import BaiduLoginButton from "./BaiduLoginButton";
 import AlipayLoginButton from "./AlipayLoginButton";
 import InfoflowLoginButton from "./InfoflowLoginButton";
@@ -75,7 +75,7 @@ function getSigninButton(provider) {
   } else if (provider.type === "ADFS") {
     return <AdfsLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Casdoor") {
-    return <CasdoorLoginButton text={text} align={"center"} />;
+    return <UserLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Baidu") {
     return <BaiduLoginButton text={text} align={"center"} />;
   } else if (provider.type === "Alipay") {
